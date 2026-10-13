@@ -18,14 +18,6 @@ android {
     }
 
     signingConfigs {
-        // Repodaki sabit anahtar: her APK aynı imzayla çıkar, güncelleme verileri silmez.
-        // Gerçek anahtar GitHub Secrets'a eklenince otomatik olarak o kullanılır.
-        debug {
-            storeFile rootProject.file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
         release {
             if (keystorePath) {
                 storeFile file(keystorePath)
@@ -39,6 +31,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            // Secret yoksa geçici debug anahtarı kullanılır (bkz. TODO.md).
             signingConfig keystorePath ? signingConfigs.release : signingConfigs.debug
         }
     }

@@ -32,4 +32,4 @@ Repo ayarları (Settings > Secrets and variables > Actions):
 | `MAIL_TO` | Variable | APK linkinin gönderileceği mail adresi |
 | `MAIL_USERNAME` | Secret | Gönderen Gmail adresi |
 | `MAIL_PASSWORD` | Secret | O Gmail hesabının uygulama şifresi |
-| `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` | Secret | İsteğe bağlı gerçek imza anahtarı; yoksa `android/debug.keystore` kullanılır |
+| `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` | Secret | İmza anahtarı (bkz. `TODO.md`); yoksa geçici debug anahtarı kullanılır |
