@@ -1,0 +1,14 @@
+# Derlenen arayüz (CI'da yeniden üretilir)
+core/dist/*
+!core/dist/.gitkeep
+web/node_modules/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/app/libs/*.aar
+android/local.properties
+
+# Bilgisayarda test sırasında oluşan veriler
+data/
