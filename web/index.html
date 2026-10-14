@@ -2,39 +2,22 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
     <title>SuperGym</title>
     <script type="module" src="/src/main.js"></script>
   </head>
-  <body class="bg-zinc-950 text-zinc-100 min-h-screen">
-    <main class="mx-auto max-w-md p-4 pb-16">
-      <header class="flex items-center justify-between py-2">
-        <h1 class="text-2xl font-bold">SuperGym</h1>
-        <div class="flex gap-2">
-          <button id="export" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm active:bg-zinc-700">Dışa aktar</button>
-          <button id="import" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm active:bg-zinc-700">İçe aktar</button>
-          <input id="import-file" type="file" accept="application/json,.json" class="hidden" />
-        </div>
-      </header>
+  <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
+    <main id="view" class="mx-auto max-w-md p-4 pb-40"></main>
 
-      <form id="form" class="mt-4 space-y-3 rounded-2xl bg-zinc-900 p-4">
-        <input name="exercise" required placeholder="Hareket (örn. Bench Press)"
-          class="w-full rounded-lg bg-zinc-800 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500" />
-        <div class="grid grid-cols-3 gap-2">
-          <label class="text-xs text-zinc-400">Set
-            <input name="sets" type="number" inputmode="numeric" min="0" class="mt-1 w-full rounded-lg bg-zinc-800 px-3 py-2 text-base text-zinc-100" /></label>
-          <label class="text-xs text-zinc-400">Tekrar
-            <input name="reps" type="number" inputmode="numeric" min="0" class="mt-1 w-full rounded-lg bg-zinc-800 px-3 py-2 text-base text-zinc-100" /></label>
-          <label class="text-xs text-zinc-400">Kilo (kg)
-            <input name="weight" type="number" inputmode="decimal" min="0" step="0.5" class="mt-1 w-full rounded-lg bg-zinc-800 px-3 py-2 text-base text-zinc-100" /></label>
-        </div>
-        <input name="date" type="date" class="w-full rounded-lg bg-zinc-800 px-3 py-2" />
-        <button class="w-full rounded-lg bg-emerald-600 py-2 font-semibold active:bg-emerald-700">Kaydet</button>
-      </form>
+    <!-- Dinlenme sayacı ve alt menü -->
+    <div class="fixed inset-x-0 bottom-0 z-30">
+      <div id="timer"></div>
+      <nav id="nav" class="border-t border-zinc-800 bg-zinc-950/95 backdrop-blur"></nav>
+    </div>
 
-      <p id="message" class="mt-3 hidden rounded-lg px-3 py-2 text-sm"></p>
-
-      <ul id="list" class="mt-6 space-y-2"></ul>
-    </main>
+    <div id="message" class="pointer-events-none fixed inset-x-0 top-0 z-50 p-3"></div>
+    <div id="sheet" class="fixed inset-0 z-40 hidden bg-zinc-950"></div>
+    <input id="import-file" type="file" accept="application/json,.json" class="hidden" />
   </body>
 </html>

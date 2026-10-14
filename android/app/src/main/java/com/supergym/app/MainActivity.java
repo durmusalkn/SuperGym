@@ -2,14 +2,21 @@ package com.supergym.app;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Insets;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.io.OutputStream;
@@ -59,7 +66,19 @@ public class MainActivity extends Activity {
             }
         });
         webView.addJavascriptInterface(new Bridge(), "SuperGymAndroid");
-        setContentView(webView);
+
+        // Android 15'te uygulama ekranın tamamına çizilir; durum çubuğu, alt gezinme
+        // çubuğu ve klavye kadar boşluk bırakılmazsa arayüz bunların altında kalır.
+        FrameLayout root = new FrameLayout(this);
+        root.addView(webView);
+        if (Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
+                v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                return WindowInsets.CONSUMED;
+            });
+        }
+        setContentView(root);
 
         // Kaydedilmiş sayfa durumu geri yüklenmez: uygulama kapanıp açıldığında sunucu
         // yeni bir anahtarla başlar, eski adres artık geçersizdir.
@@ -109,6 +128,27 @@ public class MainActivity extends Activity {
                 intent.setType("application/json");
                 intent.putExtra(Intent.EXTRA_TITLE, fileName);
                 startActivityForResult(intent, REQUEST_EXPORT);
+            });
+        }
+
+        // Dinlenme sayacı bitince telefonu titretir.
+        @JavascriptInterface
+        public void vibrate(long ms) {
+            Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+            if (vibrator == null || !vibrator.hasVibrator()) return;
+            if (Build.VERSION.SDK_INT >= 26) {
+                vibrator.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                vibrator.vibrate(ms);
+            }
+        }
+
+        // Dinlenme sayacı çalışırken ekran kararmasın.
+        @JavascriptInterface
+        public void keepScreenOn(boolean on) {
+            runOnUiThread(() -> {
+                if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             });
         }
     }

@@ -3,6 +3,8 @@
 
     <!-- Sadece telefonun kendi içindeki yerel sunucuya (127.0.0.1) bağlanmak için. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Dinlenme sayacı bitince titreşim için. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:label="SuperGym"
@@ -13,7 +15,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden">
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

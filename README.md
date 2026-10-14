@@ -3,6 +3,19 @@
 Antrenmanda yapılan hareketleri kaydeden, tamamen telefonda çalışan uygulama.
 Bulut yok: veriler telefondaki bir JSON dosyasında tutulur, dışa/içe aktarma ile yedeklenir.
 
+## Özellikler
+
+- **Antrenman:** günün hareketleri, her set ayrı (kg × tekrar; kardiyoda dakika ve km).
+  Yeni set kutuları son setle ya da geçen seferin değerleriyle dolu gelir.
+- **Geçen sefer ve rekor:** her harekette son yapılış ve en ağır set gösterilir; rekor kırılınca 🏆.
+- **Dinlenme sayacı:** bugünün antrenmanına set eklenince başlar, bitince titreşir (süresi Ayarlar'dan).
+- **Takvim:** gidilen günler ve çalışılan kas grupları; haftalık/aylık gün sayısı ve hafta serisi.
+- **İlerleme:** hareket başına grafik (en ağır set, tahmini 1RM, hacim, tekrar) ve geçmiş; vücut ağırlığı takibi.
+- **Hareketler:** hazır liste + kendi hareketlerin; kullanılmış hareket silinince arşivlenir, geçmiş bozulmaz.
+- **Programlar:** "Push", "Bacak günü" gibi şablonlar; antrenmana tek dokunuşla eklenir.
+- **Yedek:** dışa/içe aktarma. Eski sürümün verileri ve yedekleri otomatik olarak yeni yapıya çevrilir
+  (çevrilmeden önceki dosya `supergym.json.v1-yedek` olarak saklanır).
+
 ## Yapı
 
 | Klasör | İçerik |
