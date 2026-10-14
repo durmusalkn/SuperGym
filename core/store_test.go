@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -328,5 +329,80 @@ func TestCorruptFileIsSetAside(t *testing.T) {
 	}
 	if s.Warning() != "" {
 		t.Fatal("içe aktarmadan sonra uyarı kalkmadı")
+	}
+}
+
+func TestUpgradeV2(t *testing.T) {
+	dir := t.TempDir()
+	v2 := `{"app":"SuperGym","version":2,"exercises":[{"id":"x","name":"Squat","group":"Bacak","kind":"weight"},
+		{"id":"k","name":"Koşu","group":"Kardiyo","kind":"cardio"}],
+		"workouts":[{"date":"2026-10-14","items":[{"exerciseId":"x","sets":[{"reps":5,"weight":100}]}]}],
+		"templates":[],"bodyWeights":[],"settings":{"restSeconds":120}}`
+	if err := os.WriteFile(filepath.Join(dir, "supergym.json"), []byte(v2), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := OpenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := s.Data()
+	st := d.Settings
+	if d.Version != 3 || st.RestSeconds != 120 || st.BackupDays != defaultBackupDays || st.ReminderTime != defaultReminderTime || st.ReminderDays == nil {
+		t.Fatalf("ayarlar yükseltilmedi: %+v", st)
+	}
+	sq, run := d.Exercises[0], d.Exercises[1]
+	if sq.RepMin != 8 || sq.RepMax != 12 || sq.Increment != 2.5 {
+		t.Fatalf("ağırlık hareketine varsayılan hedef verilmedi: %+v", sq)
+	}
+	if run.RepMax != 0 || run.Increment != 0 {
+		t.Fatalf("kardiyoya hedef verilmemeli: %+v", run)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "supergym.json.v2-yedek")); err != nil {
+		t.Fatal("2. sürüm dosyası saklanmadı")
+	}
+}
+
+func TestNewFieldsValidation(t *testing.T) {
+	s, _ := newTestStore(t)
+	sq := exerciseID(t, s.Data(), "Squat")
+	ok := Workout{Date: "2026-10-14", Start: "2026-10-14T18:00:00+03:00", End: "2026-10-14T19:10:00+03:00",
+		Items: []Item{{ExerciseID: sq, LinkNext: true, Sets: []Set{{Reps: 10, Weight: 40, Warmup: true}, {Reps: 5, Weight: 100, RPE: 8.5}}}}}
+	if _, err := s.PutWorkout(ok); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := json.Marshal(s.Data())
+	st := s.Data().Settings
+	bad := []func() (Data, error){
+		func() (Data, error) {
+			return s.PutWorkout(Workout{Date: "2026-10-15", Start: "dün akşam", Items: []Item{{ExerciseID: sq}}})
+		},
+		func() (Data, error) {
+			return s.PutWorkout(Workout{Date: "2026-10-15", Items: []Item{{ExerciseID: sq, Sets: []Set{{Reps: 5, RPE: 11}}}}})
+		},
+		func() (Data, error) { return s.AddExercise(Exercise{Name: "A", RepMin: 12, RepMax: 8}) },
+		func() (Data, error) { return s.AddExercise(Exercise{Name: "B", Increment: -1}) },
+		func() (Data, error) { x := st; x.ReminderDays = []int{7}; return s.PutSettings(x) },
+		func() (Data, error) { x := st; x.ReminderTime = "25:00"; return s.PutSettings(x) },
+		func() (Data, error) { x := st; x.InactiveDays = -1; return s.PutSettings(x) },
+		func() (Data, error) { x := st; x.LastBackup = "dün"; return s.PutSettings(x) },
+	}
+	for i, fn := range bad {
+		if _, err := fn(); err == nil {
+			t.Errorf("%d. geçersiz istek kabul edildi", i+1)
+		}
+	}
+	after, _ := json.Marshal(s.Data())
+	if string(before) != string(after) {
+		t.Fatal("reddedilen istekler verileri değiştirdi")
+	}
+
+	x := st
+	x.ReminderDays = []int{5, 1, 3, 1}
+	d, err := s.PutSettings(x)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(d.Settings.ReminderDays) != "[1 3 5]" {
+		t.Fatalf("günler sıralanmadı: %v", d.Settings.ReminderDays)
 	}
 }

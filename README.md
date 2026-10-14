@@ -13,6 +13,15 @@ Bulut yok: veriler telefondaki bir JSON dosyasında tutulur, dışa/içe aktarma
 - **İlerleme:** hareket başına grafik (en ağır set, tahmini 1RM, hacim, tekrar) ve geçmiş; vücut ağırlığı takibi.
 - **Hareketler:** hazır liste + kendi hareketlerin; kullanılmış hareket silinince arşivlenir, geçmiş bozulmaz.
 - **Programlar:** "Push", "Bacak günü" gibi şablonlar; antrenmana tek dokunuşla eklenir.
+- **Isınma seti ve zorluk (RPE):** set numarasına dokununca ısınma seti olur (rekora ve grafiğe sayılmaz);
+  RPE kutusu Ayarlar'dan açılır.
+- **Artırma önerisi:** geçen sefer tüm setlerde hedef tekrarın üst sınırına ulaşıldıysa ağırlık artışı önerilir
+  (hedef aralık ve artış hareket ayarlarında).
+- **Süperset ve sıralama:** iki hareket bağlanınca dinlenme gruptaki son hareketten sonra başlar; ↑/↓ ile sıra değişir.
+- **Antrenman süresi ve hareket notu:** ilk/son setin saati otomatik tutulur; harekete kalıcı not eklenebilir.
+- **Kas grubu dengesi:** son 7/30 günde hangi gruba kaç set yapıldığı.
+- **Android:** dinlenme sayacı arka planda bildirimle sürer; antrenman günü / uzun ara hatırlatmaları;
+  ana ekran widget'ı (bu hafta, seri, son antrenman); İndirilenler/SuperGym klasörüne otomatik yedek.
 - **Yedek:** dışa/içe aktarma. Eski sürümün verileri ve yedekleri otomatik olarak yeni yapıya çevrilir
   (çevrilmeden önceki dosya `supergym.json.v1-yedek` olarak saklanır).
 

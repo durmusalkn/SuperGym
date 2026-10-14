@@ -1,1 +1,73 @@
 @import "tailwindcss";
+@import "@fontsource-variable/outfit";
+
+/* Ritim teması: gece mürekkebi zemin, efor için mercan, dinlenme için nane. */
+@theme {
+  --font-sans: "Outfit Variable", system-ui, sans-serif;
+
+  --color-ink: #15121f;
+  --color-surface: #1f1b2d;
+  --color-line: #2e2942;
+  --color-muted: #a39db8;
+  --color-text: #eeeaf6;
+  --color-coral: #ff8a6b;
+  --color-mint: #74e3c8;
+  --color-lav: #b79cff;
+  --color-sun: #ffc15e;
+
+  /* Ekranlarda kalan gri ve yeşil sınıflar da temaya uysun. */
+  --color-zinc-950: #15121f;
+  --color-zinc-900: #1f1b2d;
+  --color-zinc-800: #2e2942;
+  --color-zinc-700: #3a3452;
+  --color-zinc-600: #5b5378;
+  --color-zinc-500: #8a84a0;
+  --color-zinc-400: #a39db8;
+  --color-zinc-300: #d9d4e6;
+  --color-zinc-200: #e6e2f0;
+  --color-zinc-100: #eeeaf6;
+  --color-emerald-300: #ffb59f;
+  --color-emerald-400: #ff9f84;
+  --color-emerald-500: #ff8a6b;
+  --color-emerald-600: #ff8a6b;
+  --color-emerald-700: #f0704f;
+}
+
+@keyframes nefes {
+  0%,
+  100% {
+    transform: scale(0.86);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+.nefes {
+  animation: nefes 10s ease-in-out infinite;
+}
+@keyframes nabiz {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+.nabiz {
+  animation: nabiz 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nefes,
+  .nabiz {
+    animation: none;
+  }
+}
+
+/* Yatay kayan satırlarda kaydırma çubuğu gizlenir. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

@@ -74,20 +74,30 @@ export function saveWorkout(w) {
     list.sort((a, b) => a.date.localeCompare(b.date))
   }
   state.data.workouts = list
-  return mutate('PUT', `/api/workouts/${w.date}`, { items: w.items, note: w.note || '' })
+  return mutate('PUT', `/api/workouts/${w.date}`, { items: w.items, note: w.note || '', start: w.start || '', end: w.end || '' })
 }
 
 export const hasSets = (w) => w.items.some((it) => it.sets.length > 0)
 
+// Antrenman süresi (dakika): ilk setten son sete. Saat kaydı yoksa 0.
+export function workoutMinutes(w) {
+  if (!w.start || !w.end) return 0
+  return Math.max(0, Math.round((new Date(w.end) - new Date(w.start)) / 60000))
+}
+
 // Antrenmana gidilen günler (en az bir set girilmiş).
 export const attendedDates = () => new Set(state.data.workouts.filter(hasSets).map((w) => w.date))
 
-// Bir hareketin geçmişi: [{ date, sets }] (eskiden yeniye, seti olan günler).
+// Isınma setleri rekora, hacme, grafiğe ve "geçen sefer"e sayılmaz.
+export const workSets = (sets) => sets.filter((s) => !s.warmup)
+
+// Bir hareketin geçmişi: [{ date, sets }] (eskiden yeniye, yalnızca asıl setler).
 export function history(exId) {
   const out = []
   for (const w of state.data.workouts) {
     for (const it of w.items) {
-      if (it.exerciseId === exId && it.sets.length) out.push({ date: w.date, sets: it.sets, note: it.note })
+      const sets = it.exerciseId === exId ? workSets(it.sets) : []
+      if (sets.length) out.push({ date: w.date, sets, note: it.note })
     }
   }
   return out
@@ -101,7 +111,7 @@ export function lastBefore(exId, date) {
 
 // Tahmini tek tekrar maksimumu (Epley).
 export const oneRM = (s) => (s.reps > 1 ? s.weight * (1 + s.reps / 30) : s.weight)
-export const volume = (sets) => sets.reduce((sum, s) => sum + (s.reps || 0) * (s.weight || 0), 0)
+export const volume = (sets) => workSets(sets).reduce((sum, s) => sum + (s.reps || 0) * (s.weight || 0), 0)
 
 // Rekorlar; exceptDate verilirse o gün hesaba katılmaz.
 export function records(exId, exceptDate) {
@@ -117,4 +127,32 @@ export function records(exId, exceptDate) {
     }
   }
   return r
+}
+
+// Artırma önerisi (çift aşamalı ilerleme): geçen sefer en ağır ağırlıktaki tüm setlerde
+// hedef aralığın üst sınırına ulaşıldıysa ağırlığı artır, ulaşılmadıysa aynı ağırlıkla
+// tekrarları artır. Ağırlık hareketi değilse ya da geçmiş yoksa null.
+export function suggestion(ex, date) {
+  if (ex.kind !== 'weight') return null
+  const last = lastBefore(ex.id, date)
+  if (!last) return null
+  const repMin = ex.repMin || 8
+  const repMax = ex.repMax || 12
+  const top = Math.max(...last.sets.map((s) => s.weight || 0))
+  const topSets = last.sets.filter((s) => (s.weight || 0) === top)
+  const allDone = topSets.every((s) => (s.reps || 0) >= repMax)
+  if (!top) {
+    return allDone ? { weight: 0, reps: repMax, increase: true, text: `Tüm setlerde ${repMax}+ tekrar yaptın: ağırlık eklemeyi dene.` } : null
+  }
+  if (allDone) {
+    const weight = Math.round((top + (ex.increment || 2.5)) * 100) / 100
+    return { weight, reps: repMin, increase: true, text: `${weight.toLocaleString('tr-TR')} kg dene (geçen sefer tüm setlerde ${repMax}+ tekrar)` }
+  }
+  const reps = Math.min(repMax, Math.max(...topSets.map((s) => s.reps || 0)) + 1)
+  return {
+    weight: top,
+    reps,
+    increase: false,
+    text: `${top.toLocaleString('tr-TR')} kg ile devam: hedef her sette ${repMax} tekrar`,
+  }
 }
