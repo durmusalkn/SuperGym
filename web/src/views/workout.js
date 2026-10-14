@@ -1,6 +1,6 @@
 // Antrenman ekranı: seçilen günün hareketleri ve setleri.
-import { h, today, addDays, longDate, shortDate, relativeDay, isValidDate, num, parseNum } from '../util.js'
-import { state, exercise, workoutFor, saveWorkout, lastBefore, records, volume, workSets, suggestion } from '../state.js'
+import { h, today, addDays, longDate, shortDate, relativeDay, isValidDate, num, parseNum, hoursMinutes, clock } from '../util.js'
+import { state, exercise, workoutFor, saveWorkout, lastBefore, records, volume, workSets, suggestion, workoutMinutes } from '../state.js'
 import { go, render, show, card, button, groupChip, empty } from '../ui.js'
 import { pickExercise, editTemplate } from '../sheets.js'
 import { startRest } from '../timer.js'
@@ -110,7 +110,12 @@ export function workoutView(arg) {
 function summaryText(w) {
   const sets = w.items.reduce((n, it) => n + workSets(it.sets).length, 0)
   const vol = w.items.reduce((n, it) => n + volume(it.sets), 0)
-  return sets ? `${w.items.length} hareket · ${sets} set${vol ? ` · ${num(Math.round(vol))} kg toplam` : ''}` : ''
+  if (!sets) return ''
+  const parts = [`${w.items.length} hareket`, `${sets} set`]
+  if (vol) parts.push(`${num(Math.round(vol))} kg toplam`)
+  const min = workoutMinutes(w)
+  if (w.start) parts.push(min ? `${clock(w.start)}–${clock(w.end)} (${hoursMinutes(min)})` : `başlangıç ${clock(w.start)}`)
+  return parts.join(' · ')
 }
 
 const navBtn = (text, onclick) =>
@@ -359,6 +364,12 @@ function addSet(date, i, set) {
   const rec = records(ex.id, date)
   const bestToday = Math.max(0, ...it.sets.filter((s) => !s.warmup).map((s) => s.weight || 0))
   it.sets.push(set)
+  // Bugünün antrenmanında süre tutulur: ilk set başlangıç, son set bitiş.
+  if (date === today()) {
+    const now = new Date().toISOString()
+    w.start ||= now
+    w.end = now
+  }
   saveWorkout(w)
   render()
   if (ex.kind === 'weight' && !set.warmup && rec.sessions && set.weight > rec.weight && set.weight > bestToday) {

@@ -1,6 +1,6 @@
 // Takvim: gidilen günler, haftalık özet ve seri.
-import { h, today, ymd, parseDate, addDays, weekStart, shortDate, WEEKDAYS_SHORT, MONTHS, num, groupColor } from '../util.js'
-import { state, exercise, attendedDates, hasSets, volume } from '../state.js'
+import { h, today, ymd, parseDate, addDays, weekStart, shortDate, WEEKDAYS_SHORT, MONTHS, num, groupColor, hoursMinutes } from '../util.js'
+import { state, exercise, attendedDates, hasSets, volume, workoutMinutes } from '../state.js'
 import { go, card, groupDot, sectionTitle, empty } from '../ui.js'
 
 // Bir antrenmanda çalışılan kas grupları (sırayla, tekrarsız).
@@ -131,6 +131,7 @@ export function calendarView(arg) {
                   'p',
                   { class: 'truncate text-xs text-zinc-500' },
                   `${w.items.filter((it) => it.sets.length).length} hareket · ${sets} set · `,
+                  workoutMinutes(w) ? `${hoursMinutes(workoutMinutes(w))} · ` : '',
                   w.items
                     .filter((it) => it.sets.length)
                     .map((it) => exercise(it.exerciseId)?.name)

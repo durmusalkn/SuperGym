@@ -90,6 +90,14 @@ export function parseNum(v) {
   return Number.isFinite(n) && n > 0 ? n : 0
 }
 
+// "1 sa 12 dk"
+export const hoursMinutes = (min) => (min >= 60 ? `${Math.floor(min / 60)} sa${min % 60 ? ` ${min % 60} dk` : ''}` : `${min} dk`)
+// Zaman damgasından telefonun saatine göre "18:05"
+export const clock = (iso) => {
+  const d = new Date(iso)
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export const duration = (sec) => `${Math.floor(sec / 60)}:${pad(Math.max(0, sec % 60))}`
 
 // --- Kas grupları ---

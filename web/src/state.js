@@ -74,10 +74,16 @@ export function saveWorkout(w) {
     list.sort((a, b) => a.date.localeCompare(b.date))
   }
   state.data.workouts = list
-  return mutate('PUT', `/api/workouts/${w.date}`, { items: w.items, note: w.note || '' })
+  return mutate('PUT', `/api/workouts/${w.date}`, { items: w.items, note: w.note || '', start: w.start || '', end: w.end || '' })
 }
 
 export const hasSets = (w) => w.items.some((it) => it.sets.length > 0)
+
+// Antrenman süresi (dakika): ilk setten son sete. Saat kaydı yoksa 0.
+export function workoutMinutes(w) {
+  if (!w.start || !w.end) return 0
+  return Math.max(0, Math.round((new Date(w.end) - new Date(w.start)) / 60000))
+}
 
 // Antrenmana gidilen günler (en az bir set girilmiş).
 export const attendedDates = () => new Set(state.data.workouts.filter(hasSets).map((w) => w.date))
