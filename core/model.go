@@ -18,6 +18,11 @@ type Exercise struct {
 	Group    string `json:"group"`
 	Kind     string `json:"kind"` // KindWeight veya KindCardio
 	Archived bool   `json:"archived,omitempty"`
+	Note     string `json:"note,omitempty"` // form ipuçları, makine ayarı vb.
+	// Artırma önerisi için hedef tekrar aralığı ve ağırlık artışı (ağırlık hareketlerinde).
+	RepMin    int     `json:"repMin,omitempty"`
+	RepMax    int     `json:"repMax,omitempty"`
+	Increment float64 `json:"increment,omitempty"`
 }
 
 // Set, bir hareketin tek bir setidir. Ağırlık hareketlerinde Reps/Weight,
@@ -27,6 +32,8 @@ type Set struct {
 	Weight  float64 `json:"weight,omitempty"`
 	Minutes float64 `json:"minutes,omitempty"`
 	Km      float64 `json:"km,omitempty"`
+	Warmup  bool    `json:"warmup,omitempty"` // ısınma seti: rekor, hacim ve grafiğe sayılmaz
+	RPE     float64 `json:"rpe,omitempty"`    // zorluk 1-10 (0: girilmedi)
 }
 
 // Item, bir antrenmanda yapılan hareket ve setleridir.
@@ -34,6 +41,7 @@ type Item struct {
 	ExerciseID string `json:"exerciseId"`
 	Sets       []Set  `json:"sets"`
 	Note       string `json:"note,omitempty"`
+	LinkNext   bool   `json:"linkNext,omitempty"` // sonraki hareketle süperset
 }
 
 // Workout, bir günün antrenmanıdır. Her gün için en fazla bir antrenman olur.
@@ -41,6 +49,8 @@ type Workout struct {
 	Date  string `json:"date"` // YYYY-MM-DD
 	Items []Item `json:"items"`
 	Note  string `json:"note,omitempty"`
+	Start string `json:"start,omitempty"` // ilk setin zamanı (RFC 3339)
+	End   string `json:"end,omitempty"`   // son setin zamanı (RFC 3339)
 }
 
 // Template, hazır programdır (örn. "Push"): seçilince hareketleri antrenmana eklenir.
@@ -56,7 +66,13 @@ type BodyWeight struct {
 }
 
 type Settings struct {
-	RestSeconds int `json:"restSeconds"` // 0: dinlenme sayacı kapalı
+	RestSeconds  int    `json:"restSeconds"`          // 0: dinlenme sayacı kapalı
+	ShowRPE      bool   `json:"showRpe,omitempty"`    // setlerde zorluk (RPE) kutusu
+	BackupDays   int    `json:"backupDays"`           // otomatik yedek aralığı (gün), 0: kapalı
+	LastBackup   string `json:"lastBackup,omitempty"` // son otomatik yedeğin tarihi
+	ReminderDays []int  `json:"reminderDays"`         // hatırlatma günleri (0: Pazar … 6: Cumartesi)
+	ReminderTime string `json:"reminderTime"`         // hatırlatma saati, SS:DD
+	InactiveDays int    `json:"inactiveDays"`         // bu kadar gün gidilmezse hatırlat, 0: kapalı
 }
 
 // Data, verilerin tamamıdır; dışa/içe aktarılan dosya da budur.
@@ -73,13 +89,18 @@ type Data struct {
 
 const (
 	appName       = "SuperGym"
-	schemaVersion = 2
+	schemaVersion = 3
 	dateLayout    = "2006-01-02"
 
 	KindWeight = "weight"
 	KindCardio = "cardio"
 
-	defaultRestSeconds = 90
+	defaultRestSeconds  = 90
+	defaultBackupDays   = 7
+	defaultReminderTime = "18:00"
+	defaultRepMin       = 8
+	defaultRepMax       = 12
+	defaultIncrement    = 2.5
 )
 
 // Groups, kas gruplarıdır. Arayüz de aynı listeyi kullanır.
@@ -122,7 +143,12 @@ func newData() Data {
 		Workouts:    []Workout{},
 		Templates:   []Template{},
 		BodyWeights: []BodyWeight{},
-		Settings:    Settings{RestSeconds: defaultRestSeconds},
+		Settings: Settings{
+			RestSeconds:  defaultRestSeconds,
+			BackupDays:   defaultBackupDays,
+			ReminderDays: []int{},
+			ReminderTime: defaultReminderTime,
+		},
 	}
 	for _, e := range defaultExercises {
 		d.Exercises = append(d.Exercises, Exercise{ID: newID(), Name: e.name, Group: e.group, Kind: e.kind})
@@ -160,6 +186,11 @@ func upgrade(in fileData) (Data, error) {
 	}
 	d := in.Data
 	d.ExportedAt = ""
+	if in.Version < 3 {
+		// 3. sürümde gelen ayarların varsayılanları.
+		d.Settings.BackupDays = defaultBackupDays
+		d.Settings.ReminderTime = defaultReminderTime
+	}
 	normalize(&d)
 	return d, validateData(d)
 }
@@ -232,6 +263,15 @@ func normalize(d *Data) {
 		if e.Kind == "" {
 			e.Kind = KindWeight
 		}
+		e.Note = strings.TrimSpace(e.Note)
+		if e.Kind == KindWeight {
+			if e.RepMin == 0 && e.RepMax == 0 {
+				e.RepMin, e.RepMax = defaultRepMin, defaultRepMax
+			}
+			if e.Increment == 0 {
+				e.Increment = defaultIncrement
+			}
+		}
 	}
 	if d.Workouts == nil {
 		d.Workouts = []Workout{}
@@ -267,6 +307,14 @@ func normalize(d *Data) {
 	if d.BodyWeights == nil {
 		d.BodyWeights = []BodyWeight{}
 	}
+	if d.Settings.ReminderDays == nil {
+		d.Settings.ReminderDays = []int{}
+	}
+	slices.Sort(d.Settings.ReminderDays)
+	d.Settings.ReminderDays = slices.Compact(d.Settings.ReminderDays)
+	if d.Settings.ReminderTime == "" {
+		d.Settings.ReminderTime = defaultReminderTime
+	}
 	sort.SliceStable(d.BodyWeights, func(i, j int) bool { return d.BodyWeights[i].Date < d.BodyWeights[j].Date })
 }
 
@@ -294,6 +342,15 @@ func validateData(d Data) error {
 		if e.Kind != KindWeight && e.Kind != KindCardio {
 			return fmt.Errorf("bilinmeyen hareket türü: %q", e.Kind)
 		}
+		if len([]rune(e.Note)) > 500 {
+			return errors.New("hareket notu en fazla 500 karakter olabilir")
+		}
+		if e.RepMin < 0 || e.RepMax > 100 || e.RepMin > e.RepMax {
+			return fmt.Errorf("%s: hedef tekrar aralığı geçersiz", e.Name)
+		}
+		if !validNumber(e.Increment) || e.Increment < 0 || e.Increment > 50 {
+			return fmt.Errorf("%s: ağırlık artışı 0 ile 50 kg arasında olmalı", e.Name)
+		}
 		ids[e.ID] = e
 		names[strings.ToLower(e.Name)] = true
 	}
@@ -307,6 +364,11 @@ func validateData(d Data) error {
 			return fmt.Errorf("%s için iki antrenman var", w.Date)
 		}
 		dates[w.Date] = true
+		for _, t := range []string{w.Start, w.End} {
+			if _, err := time.Parse(time.RFC3339, t); t != "" && err != nil {
+				return fmt.Errorf("%s: geçersiz antrenman saati", w.Date)
+			}
+		}
 		for _, it := range w.Items {
 			e, ok := ids[it.ExerciseID]
 			if !ok {
@@ -345,8 +407,26 @@ func validateData(d Data) error {
 		}
 	}
 
-	if d.Settings.RestSeconds < 0 || d.Settings.RestSeconds > 3600 {
+	st := d.Settings
+	if st.RestSeconds < 0 || st.RestSeconds > 3600 {
 		return errors.New("dinlenme süresi 0 ile 3600 saniye arasında olmalı")
+	}
+	if st.BackupDays < 0 || st.BackupDays > 60 {
+		return errors.New("yedek aralığı 0 ile 60 gün arasında olmalı")
+	}
+	if st.LastBackup != "" && !validDate(st.LastBackup) {
+		return errors.New("son yedek tarihi geçersiz")
+	}
+	for _, day := range st.ReminderDays {
+		if day < 0 || day > 6 {
+			return errors.New("hatırlatma günü geçersiz")
+		}
+	}
+	if _, err := time.Parse("15:04", st.ReminderTime); err != nil {
+		return errors.New("hatırlatma saati SS:DD biçiminde olmalı")
+	}
+	if st.InactiveDays < 0 || st.InactiveDays > 30 {
+		return errors.New("hatırlatma için gün sayısı 0 ile 30 arasında olmalı")
 	}
 	return nil
 }
@@ -362,6 +442,9 @@ func validateSet(s Set) error {
 	}
 	if s.Weight > 2000 || s.Minutes > 1440 || s.Km > 1000 {
 		return errors.New("değer çok büyük")
+	}
+	if s.RPE != 0 && (s.RPE < 1 || s.RPE > 10) {
+		return errors.New("zorluk (RPE) 1 ile 10 arasında olmalı")
 	}
 	return nil
 }
