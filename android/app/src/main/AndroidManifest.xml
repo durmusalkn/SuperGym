@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Sadece telefonun kendi içindeki yerel sunucuya (127.0.0.1) bağlanmak için. -->
+    <!-- Telefonun kendi içindeki yerel sunucuya (127.0.0.1) bağlanmak ve yapay zekâ
+         antrenörünün (isteğe bağlı) Gemini API'ye soru sorması için. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Dinlenme sayacı bitince titreşim için. -->
     <uses-permission android:name="android.permission.VIBRATE" />

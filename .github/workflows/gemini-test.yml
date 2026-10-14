@@ -8,6 +8,7 @@ on:
   push:
     paths:
       - .github/workflows/gemini-test.yml
+      - core/ai.go
   workflow_dispatch:
 
 permissions:
@@ -45,8 +46,9 @@ jobs:
             "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024}
           }
           EOF
-          durum=0
-          for model in gemini-flash-lite-latest gemini-flash-latest; do
+          # En az bir model cevap verirse başarılı sayılır.
+          durum=1
+          for model in gemini-flash-lite-latest gemini-flash-latest gemini-3.5-flash gemini-3.8-flash; do
             echo "::group::$model"
             # Yoğunlukta (503) ya da kota dolunca (429) birkaç kez bekleyip yeniden dene.
             for deneme in 1 2 3; do
@@ -61,10 +63,22 @@ jobs:
               jq -r '.modelVersion // empty' cevap.json
               jq -r '.candidates[0].content.parts[]?.text // empty' cevap.json
               jq -c '.usageMetadata' cevap.json
+              durum=0
             else
               jq '.error // .' cevap.json
-              durum=1
             fi
             echo "::endgroup::"
           done
           exit $durum
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Uygulamanın kendi kodu (core/ai.go) ile: Flash yoğunsa Flash-Lite'a geçer.
+      - name: Go kodu ile canlı deneme
+        run: |
+          mkdir -p core/dist && touch core/dist/.bos
+          go test -run TestCoachLive -v ./core

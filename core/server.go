@@ -39,13 +39,13 @@ func Start(dataDir, addr string) (string, error) {
 	}
 	_, port, _ := net.SplitHostPort(ln.Addr().String())
 	token := newToken()
-	h := allowHosts(Handler(store, token), ln.Addr().String(), "127.0.0.1:"+port, "localhost:"+port)
+	h := allowHosts(Handler(store, OpenCoach(dataDir), token), ln.Addr().String(), "127.0.0.1:"+port, "localhost:"+port)
 	srv := &http.Server{Handler: h, ReadHeaderTimeout: 10 * time.Second}
 	go srv.Serve(ln)
 	return "http://127.0.0.1:" + port + "/?t=" + token, nil
 }
 
-func Handler(store *Store, token string) http.Handler {
+func Handler(store *Store, coach *Coach, token string) http.Handler {
 	api := http.NewServeMux()
 
 	api.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +131,42 @@ func Handler(store *Store, token string) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, d)
+	})
+
+	// Yapay zekâ antrenörü (bkz. ai.go). Anahtar yalnızca kaydedilir, geri gönderilmez.
+	api.HandleFunc("GET /api/ai", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]bool{"hasKey": coach.HasKey()})
+	})
+	api.HandleFunc("PUT /api/ai/key", func(w http.ResponseWriter, r *http.Request) {
+		var v struct {
+			Key string `json:"key"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&v); err != nil {
+			writeError(w, http.StatusBadRequest, "geçersiz istek")
+			return
+		}
+		if err := coach.SetKey(v.Key); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"hasKey": coach.HasKey()})
+	})
+	api.HandleFunc("POST /api/ai/ask", func(w http.ResponseWriter, r *http.Request) {
+		var q AskRequest
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&q); err != nil {
+			writeError(w, http.StatusBadRequest, "geçersiz istek")
+			return
+		}
+		res, err := coach.Ask(q)
+		switch {
+		case errors.Is(err, ErrNoKey), errors.Is(err, ErrEmptyPrompt):
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		case err != nil:
+			writeError(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
 	})
 
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {

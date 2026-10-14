@@ -11,7 +11,8 @@ android {
 
     defaultConfig {
         applicationId 'com.supergym.app'
-        minSdk 24
+        // 26: Gemini Nano (ML Kit GenAI) en az Android 8 ister.
+        minSdk 26
         targetSdk 35
         versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger())
         versionName "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
@@ -45,4 +46,6 @@ android {
 dependencies {
     // gomobile bind ile üretilen Go kütüphanesi (CI'da oluşturulur).
     implementation files('libs/supergym.aar')
+    // Gemini Nano: telefonun içindeki yapay zekâ modeli (bkz. Nano.java).
+    implementation 'com.google.mlkit:genai-prompt:1.0.0-beta4'
 }

@@ -2,6 +2,7 @@ package com.supergym.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Insets;
 import android.media.RingtoneManager;
@@ -385,5 +386,45 @@ public class MainActivity extends Activity {
                 else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             });
         }
+
+        // --- Yapay zekâ antrenörü denemesi (bkz. web/src/coach.js) ---
+
+        // Gemini Nano: sonuçlar window.onNano(...) ile döner.
+        @JavascriptInterface
+        public void nanoStatus() {
+            Nano.status(nanoListener);
+        }
+
+        @JavascriptInterface
+        public void nanoDownload() {
+            Nano.download(nanoListener);
+        }
+
+        @JavascriptInterface
+        public void nanoAsk(String prompt) {
+            Nano.ask(prompt, nanoListener);
+        }
+
+        // Soruyu Gemini uygulamasına paylaşır; uygulama yoksa paylaşım menüsü açılır.
+        @JavascriptInterface
+        public void askGeminiApp(String text) {
+            Intent send = new Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_TEXT, text);
+            Intent gemini = new Intent(send).setPackage(GEMINI_APP);
+            runOnUiThread(() -> {
+                try {
+                    startActivity(gemini);
+                } catch (ActivityNotFoundException e) {
+                    startActivity(Intent.createChooser(send, "Soruyu gönder"));
+                }
+            });
+        }
     }
+
+    private static final String GEMINI_APP = "com.google.android.apps.bard";
+
+    private final Nano.Listener nanoListener = message -> runOnUiThread(() -> {
+        if (webView != null) webView.evaluateJavascript("window.onNano && window.onNano(" + message + ")", null);
+    });
 }

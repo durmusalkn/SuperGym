@@ -25,9 +25,23 @@ SuperGym, telefonun içinde çalışan küçük bir web uygulamasıdır. Üç ka
 - **Android kabuğu (`android/`)**: WebView'i açar ve web'in yapamadıklarını yapar:
   dosya kaydetme/seçme, bildirim, alarm, titreşim, ana ekran widget'ı, otomatik yedek.
 
-Bulut ya da hesap yoktur. İnternet izni yalnızca telefonun kendi içindeki sunucuya
-(127.0.0.1) bağlanmak içindir (`res/xml/network_security_config.xml` şifresiz trafiğe
-yalnızca 127.0.0.1 için izin verir).
+Bulut ya da hesap yoktur; veri yalnızca telefonda durur. İnternet izni telefonun kendi
+içindeki sunucuya (127.0.0.1) bağlanmak (`res/xml/network_security_config.xml` şifresiz
+trafiğe yalnızca 127.0.0.1 için izin verir) ve kullanıcı isterse yapay zekâ antrenörünün
+Gemini API'ye soru sorması içindir.
+
+## Yapay zekâ antrenörü (deneme)
+
+Aynı soru (son 4 haftanın özeti, `web/src/coach.js` `coachPrompt`) üç yolla sorulur:
+
+| Yol | Nerede | İnternet | Not |
+| --- | --- | --- | --- |
+| Gemini API (ücretsiz katman) | `core/ai.go` `Coach`; `POST /api/ai/ask` | Gerekir | Go sunucusu HTTPS ile sorar. Önce `gemini-flash-latest`, yoğunluk/kota/bulunamadı hatasında `gemini-flash-lite-latest`. Anahtar `files/ai-anahtar.txt` (yedeğe girmez, ekrana geri gönderilmez). |
+| Gemini Nano | `Nano.java` (ML Kit GenAI Prompt API) | Gerekmez | Telefonun içindeki model; yalnızca destekleyen telefonlarda. |
+| Gemini uygulaması | `MainActivity.Bridge.askGeminiApp` | Gemini uygulaması kullanır | Soru paylaşılır; cevap SuperGym'e dönmez. Kullanıcının Gemini aboneliği burada geçerli. |
+
+Go'nun Android'de internete çıkması: DNS için cgo çözümleyicisi (Android'de Go'nun
+varsayılanı), sertifikalar için `/system/etc/security/cacerts`.
 
 ## Açılış
 

@@ -147,6 +147,17 @@ optimizasyonundan çıkar.
 
 **Uzun ara uyarısı:** "N gün gidilmezse" ve saati. O gün antrenman girdiysen bildirim gelmez.
 
+**Yapay zekâ antrenörü (deneme):** **Denemeyi aç** son 4 haftanın antrenmanlarından bir
+soru hazırlar (metni değiştirebilirsin) ve aynı soruyu üç yolla sorar:
+1. **Gemini API:** internet gerekir. aistudio.google.com/apikey adresinden ücretsiz anahtar
+   alıp bir kez **Kaydet**. Anahtar yalnızca bu telefonda durur, yedeğe girmez.
+2. **Gemini Nano:** telefonun içinde, internetsiz ve anahtarsız. Yalnızca destekleyen
+   telefonlarda; gerekirse önce **Modeli indir**.
+3. **Gemini uygulaması:** soru Gemini uygulamasına gönderilir; cevap orada görünür.
+
+Gönderilen yalnızca o metindir (hareketler, setler, vücut ağırlığı); ad ya da notlar gitmez.
+Ücretsiz Gemini API'de gönderilenler Google tarafından ürün geliştirmede kullanılabilir.
+
 **Yedek:** Dışa aktar / İçe aktar ve otomatik yedek (İndirilenler/SuperGym, son 8 yedek).
 
 **Verileri sıfırla:**

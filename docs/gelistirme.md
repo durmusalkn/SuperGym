@@ -94,11 +94,12 @@ derlemesinde denetlenir.
 ### Gemini API denemesi
 
 `.github/workflows/gemini-test.yml` yapay zekâ antrenörü için Gemini API'nin ücretsiz
-katmanını dener: kullanılabilir modelleri listeler ve örnek bir antrenman özetiyle
-`gemini-flash-lite-latest` ile `gemini-flash-latest`'e soru sorar. Yalnızca dosyanın
-kendisi değişince ya da Actions'tan elle çalışır. Anahtar Secret'taki
-`GEMINI_API_KEY`'dir; depo herkese açık olduğundan anahtar APK'ya ya da depoya
-**yazılmaz**.
+katmanını dener: kullanılabilir modelleri listeler, örnek bir antrenman özetiyle
+Flash-Lite ve Flash modellerine `curl` ile soru sorar (yoğunlukta yeniden dener; biri
+cevap verirse başarılı) ve uygulamanın kendi kodunu `go test -run TestCoachLive` ile
+gerçek API'ye karşı çalıştırır. Yalnızca bu dosya ya da `core/ai.go` değişince veya
+Actions'tan elle çalışır. Anahtar Secret'taki `GEMINI_API_KEY`'dir; depo herkese açık
+olduğundan anahtar APK'ya ya da depoya **yazılmaz** (telefonda kullanıcı girer).
 
 ### Kalıcı imza anahtarı
 
