@@ -1,0 +1,48 @@
+plugins {
+    id 'com.android.application'
+}
+
+// İmza bilgileri GitHub Secrets'tan ortam değişkeni olarak gelir.
+def keystorePath = System.getenv("KEYSTORE_PATH")
+
+android {
+    namespace 'com.supergym.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.supergym.app'
+        minSdk 24
+        targetSdk 35
+        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger())
+        versionName "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Secret yoksa geçici debug anahtarı kullanılır (bkz. TODO.md).
+            signingConfig keystorePath ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // gomobile bind ile üretilen Go kütüphanesi (CI'da oluşturulur).
+    implementation files('libs/supergym.aar')
+}
