@@ -1,0 +1,39 @@
+name: ML Kit Prompt API incelemesi (geçici)
+
+on:
+  push:
+    paths:
+      - .github/workflows/mlkit-api.yml
+
+permissions:
+  contents: read
+
+jobs:
+  incele:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: |
+          M=https://dl.google.com/android/maven2/com/google/mlkit
+          for a in genai-prompt genai-common; do
+            echo "::group::$a sürümleri"
+            curl -sS "$M/$a/maven-metadata.xml" | tee $a.xml
+            echo "::endgroup::"
+            v=$(sed -n 's:.*<latest>\(.*\)</latest>.*:\1:p' $a.xml)
+            echo "$a son sürüm: $v"
+            curl -sS "$M/$a/$v/$a-$v.pom" | grep -A3 "<dependency>" | grep -E "artifactId|version" | paste - - 
+            curl -sSo $a.aar "$M/$a/$v/$a-$v.aar"
+            mkdir -p $a && unzip -qo $a.aar -d $a
+            grep -o 'minSdkVersion="[0-9]*"' $a/AndroidManifest.xml
+            unzip -qo $a/classes.jar -d $a/c
+            ls -R $a/c | grep -v '\$' | head -100
+          done
+          for f in $(cd genai-prompt/c && find . -name '*.class' ! -name '*$*' | grep -v internal | sed 's:^\./::; s:\.class$::'); do
+            javap -public -cp genai-prompt/c "$f" 2>/dev/null
+          done
+          for f in $(cd genai-common/c && find . -name '*.class' | grep -v internal | sed 's:^\./::; s:\.class$::'); do
+            javap -public -cp genai-common/c "$f" 2>/dev/null
+          done
