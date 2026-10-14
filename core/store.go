@@ -5,37 +5,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
-// Entry, antrenmanda yapılan tek bir hareketin kaydıdır.
-type Entry struct {
-	ID       string  `json:"id"`
-	Date     string  `json:"date"` // YYYY-MM-DD
-	Exercise string  `json:"exercise"`
-	Sets     int     `json:"sets"`
-	Reps     int     `json:"reps"`
-	Weight   float64 `json:"weight"`
-	Note     string  `json:"note,omitempty"`
-}
-
-// Data, dışa/içe aktarılan dosyanın tamamıdır.
-type Data struct {
-	App        string  `json:"app"`
-	Version    int     `json:"version"`
-	ExportedAt string  `json:"exportedAt,omitempty"`
-	Entries    []Entry `json:"entries"`
-}
-
-const (
-	appName       = "SuperGym"
-	schemaVersion = 1
-	dateLayout    = "2006-01-02"
-)
+// ErrNotFound, istenen kayıt yoksa döner.
+var ErrNotFound = errors.New("kayıt bulunamadı")
 
 // Store, verileri telefondaki tek bir JSON dosyasında tutar.
 type Store struct {
@@ -49,32 +29,40 @@ func OpenStore(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	s := &Store{
-		path: filepath.Join(dir, "supergym.json"),
-		data: Data{App: appName, Version: schemaVersion, Entries: []Entry{}},
-	}
+	s := &Store{path: filepath.Join(dir, "supergym.json")}
 	b, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
-		return s, nil
+		// İlk açılış: hazır hareket listesiyle başla.
+		return s, s.write(newData())
 	}
 	if err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(b, &s.data); err != nil {
+	var in fileData
+	err = json.Unmarshal(b, &in)
+	var d Data
+	if err == nil {
+		d, err = upgrade(in)
+	}
+	if err != nil {
 		// Bozuk dosya yüzünden uygulama hiç açılamaz hale gelmesin: dosyayı silmeden
 		// kenara al ve boş verilerle devam et.
 		bad := s.path + ".bozuk-" + time.Now().Format("20060102-150405")
 		if err := os.Rename(s.path, bad); err != nil {
 			return nil, err
 		}
-		s.data = Data{App: appName, Version: schemaVersion, Entries: []Entry{}}
 		s.warning = "Veri dosyası okunamadı ve kenara alındı (" + filepath.Base(bad) +
 			"). Yedeğiniz varsa İçe aktar ile geri yükleyin."
-		return s, nil
+		return s, s.write(newData())
 	}
-	if s.data.Entries == nil {
-		s.data.Entries = []Entry{}
+	if in.Version < schemaVersion {
+		// Eski sürümün dosyası çevrilmeden önce olduğu gibi saklanır.
+		if err := writeFileAtomic(s.path+".v"+strconv.Itoa(max(in.Version, 1))+"-yedek", b); err != nil {
+			return nil, err
+		}
+		return s, s.write(d)
 	}
+	s.data = d
 	return s, nil
 }
 
@@ -85,109 +73,231 @@ func (s *Store) Warning() string {
 	return s.warning
 }
 
-func (s *Store) Entries() []Entry {
+// Data, verilerin bir kopyasını döner.
+func (s *Store) Data() Data {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Boş listede de JSON'da null değil [] dönsün.
-	return append([]Entry{}, s.data.Entries...)
+	return clone(s.data)
 }
 
-func (s *Store) Add(e Entry) (Entry, error) {
-	if e.Date == "" {
-		e.Date = time.Now().Format(dateLayout)
-	}
-	if err := validate(e); err != nil {
-		return Entry{}, err
-	}
-	e.ID = newID()
+// update, verilerin bir kopyası üzerinde fn'i çalıştırır; sonuç geçerliyse diske yazar.
+// fn ya da doğrulama hata verirse hiçbir şey değişmez.
+func (s *Store) update(fn func(d *Data) error) (Data, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	entries := append(append([]Entry(nil), s.data.Entries...), e)
-	return e, s.replace(entries)
+	next := clone(s.data)
+	if err := fn(&next); err != nil {
+		return Data{}, err
+	}
+	normalize(&next)
+	if err := validateData(next); err != nil {
+		return Data{}, err
+	}
+	if err := s.write(next); err != nil {
+		return Data{}, err
+	}
+	return clone(next), nil
 }
 
-func (s *Store) Delete(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i, e := range s.data.Entries {
-		if e.ID == id {
-			entries := append(append([]Entry(nil), s.data.Entries[:i]...), s.data.Entries[i+1:]...)
-			return s.replace(entries)
+func (s *Store) AddExercise(e Exercise) (Data, error) {
+	return s.update(func(d *Data) error {
+		e.ID = newID()
+		e.Archived = false
+		d.Exercises = append(d.Exercises, e)
+		return nil
+	})
+}
+
+// UpdateExercise, hareketin adını, grubunu, türünü ve arşiv durumunu değiştirir.
+// Kullanılmış bir hareketin türü değiştirilemez (setleri anlamsızlaşır).
+func (s *Store) UpdateExercise(id string, e Exercise) (Data, error) {
+	return s.update(func(d *Data) error {
+		i := slices.IndexFunc(d.Exercises, func(x Exercise) bool { return x.ID == id })
+		if i < 0 {
+			return ErrNotFound
 		}
-	}
-	return errors.New("kayıt bulunamadı")
+		old := d.Exercises[i]
+		if e.Kind == "" {
+			e.Kind = old.Kind
+		}
+		if e.Kind != old.Kind && used(*d, id) {
+			return errors.New("antrenmanlarda kullanılmış bir hareketin türü değiştirilemez")
+		}
+		e.ID = id
+		d.Exercises[i] = e
+		return nil
+	})
+}
+
+// DeleteExercise, hareketi programlardan çıkarır. Antrenmanlarda kullanılmışsa geçmiş
+// bozulmasın diye arşivler, kullanılmamışsa tamamen siler.
+func (s *Store) DeleteExercise(id string) (Data, error) {
+	return s.update(func(d *Data) error {
+		i := slices.IndexFunc(d.Exercises, func(x Exercise) bool { return x.ID == id })
+		if i < 0 {
+			return ErrNotFound
+		}
+		for j := range d.Templates {
+			d.Templates[j].ExerciseIDs = slices.DeleteFunc(d.Templates[j].ExerciseIDs,
+				func(x string) bool { return x == id })
+		}
+		if used(*d, id) {
+			d.Exercises[i].Archived = true
+		} else {
+			d.Exercises = slices.Delete(d.Exercises, i, i+1)
+		}
+		return nil
+	})
+}
+
+// PutWorkout, o günün antrenmanını verilenle değiştirir. Hiç hareket yoksa günü siler.
+func (s *Store) PutWorkout(w Workout) (Data, error) {
+	return s.update(func(d *Data) error {
+		if !validDate(w.Date) {
+			return errors.New("tarih YYYY-AA-GG biçiminde olmalı")
+		}
+		d.Workouts = slices.DeleteFunc(d.Workouts, func(x Workout) bool { return x.Date == w.Date })
+		if len(w.Items) > 0 || strings.TrimSpace(w.Note) != "" {
+			d.Workouts = append(d.Workouts, w)
+		}
+		return nil
+	})
+}
+
+func (s *Store) DeleteWorkout(date string) (Data, error) {
+	return s.update(func(d *Data) error {
+		n := len(d.Workouts)
+		d.Workouts = slices.DeleteFunc(d.Workouts, func(x Workout) bool { return x.Date == date })
+		if len(d.Workouts) == n {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+func (s *Store) AddTemplate(t Template) (Data, error) {
+	return s.update(func(d *Data) error {
+		t.ID = newID()
+		d.Templates = append(d.Templates, t)
+		return nil
+	})
+}
+
+func (s *Store) UpdateTemplate(id string, t Template) (Data, error) {
+	return s.update(func(d *Data) error {
+		i := slices.IndexFunc(d.Templates, func(x Template) bool { return x.ID == id })
+		if i < 0 {
+			return ErrNotFound
+		}
+		t.ID = id
+		d.Templates[i] = t
+		return nil
+	})
+}
+
+func (s *Store) DeleteTemplate(id string) (Data, error) {
+	return s.update(func(d *Data) error {
+		n := len(d.Templates)
+		d.Templates = slices.DeleteFunc(d.Templates, func(x Template) bool { return x.ID == id })
+		if len(d.Templates) == n {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+// PutBodyWeight, o günün vücut ağırlığını kaydeder (varsa değiştirir).
+func (s *Store) PutBodyWeight(b BodyWeight) (Data, error) {
+	return s.update(func(d *Data) error {
+		d.BodyWeights = slices.DeleteFunc(d.BodyWeights, func(x BodyWeight) bool { return x.Date == b.Date })
+		d.BodyWeights = append(d.BodyWeights, b)
+		return nil
+	})
+}
+
+func (s *Store) DeleteBodyWeight(date string) (Data, error) {
+	return s.update(func(d *Data) error {
+		n := len(d.BodyWeights)
+		d.BodyWeights = slices.DeleteFunc(d.BodyWeights, func(x BodyWeight) bool { return x.Date == date })
+		if len(d.BodyWeights) == n {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+func (s *Store) PutSettings(st Settings) (Data, error) {
+	return s.update(func(d *Data) error {
+		d.Settings = st
+		return nil
+	})
 }
 
 func (s *Store) Export() ([]byte, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := s.data
+	out := clone(s.data)
 	out.ExportedAt = time.Now().Format(time.RFC3339)
 	return json.MarshalIndent(out, "", "  ")
 }
 
-// Import, mevcut verilerin yerine dosyadaki verileri koyar. Dosyada tek bir
-// geçersiz kayıt bile varsa hiçbir şey değiştirilmez.
-func (s *Store) Import(b []byte) (int, error) {
-	var in Data
+// Import, mevcut verilerin yerine dosyadaki verileri koyar. Eski sürümün yedekleri de
+// kabul edilir ve çevrilir. Dosyada tek bir geçersiz kayıt bile varsa hiçbir şey değişmez.
+func (s *Store) Import(b []byte) (Data, error) {
+	var in fileData
 	if err := json.Unmarshal(b, &in); err != nil {
-		return 0, errors.New("dosya okunamadı: geçerli bir JSON değil")
+		return Data{}, errors.New("dosya okunamadı: geçerli bir JSON değil")
 	}
-	if in.App != appName {
-		return 0, errors.New("bu dosya bir SuperGym yedeği değil")
-	}
-	if in.Version > schemaVersion {
-		return 0, errors.New("yedek, uygulamanın daha yeni bir sürümüyle alınmış")
-	}
-	seen := make(map[string]bool, len(in.Entries))
-	for i := range in.Entries {
-		e := &in.Entries[i]
-		if err := validate(*e); err != nil {
-			return 0, fmt.Errorf("%d. kayıt geçersiz: %w", i+1, err)
-		}
-		if e.ID == "" || seen[e.ID] {
-			e.ID = newID()
-		}
-		seen[e.ID] = true
-	}
-	if in.Entries == nil {
-		in.Entries = []Entry{}
+	d, err := upgrade(in)
+	if err != nil {
+		return Data{}, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.replace(in.Entries); err != nil {
-		return 0, err
+	if err := s.write(d); err != nil {
+		return Data{}, err
 	}
 	s.warning = ""
-	return len(in.Entries), nil
+	return clone(d), nil
 }
 
-func validate(e Entry) error {
-	if e.Exercise == "" {
-		return errors.New("hareket adı boş olamaz")
-	}
-	if _, err := time.Parse(dateLayout, e.Date); err != nil {
-		return errors.New("tarih YYYY-AA-GG biçiminde olmalı")
-	}
-	if e.Sets < 0 || e.Reps < 0 || e.Weight < 0 {
-		return errors.New("set, tekrar ve kilo negatif olamaz")
-	}
-	return nil
-}
-
-// replace, kayıtları önce diske yazar; yazma başarılı olursa bellekteki veriyi
-// günceller. Böylece bellek ile dosya hiçbir zaman birbirinden ayrışmaz.
-func (s *Store) replace(entries []Entry) error {
-	next := Data{App: appName, Version: schemaVersion, Entries: entries}
-	b, err := json.MarshalIndent(next, "", "  ")
+// write, veriyi önce diske yazar; yazma başarılı olursa bellekteki veriyi günceller.
+// Böylece bellek ile dosya hiçbir zaman birbirinden ayrışmaz.
+func (s *Store) write(d Data) error {
+	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
 	}
 	if err := writeFileAtomic(s.path, b); err != nil {
 		return err
 	}
-	s.data = next
+	s.data = d
 	return nil
+}
+
+func used(d Data, exerciseID string) bool {
+	for _, w := range d.Workouts {
+		for _, it := range w.Items {
+			if it.ExerciseID == exerciseID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// clone, verilerin derin kopyasını döner (değişiklikler başarısız olursa asıl veri
+// etkilenmesin diye).
+func clone(d Data) Data {
+	b, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+	var out Data
+	if err := json.Unmarshal(b, &out); err != nil {
+		panic(err)
+	}
+	return out
 }
 
 // writeFileAtomic, yarım yazılmış dosya kalmaması için önce geçici dosyaya yazar,

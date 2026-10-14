@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"io/fs"
 	"net"
@@ -51,31 +52,50 @@ func Handler(store *Store, token string) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"warning": store.Warning()})
 	})
 
-	api.HandleFunc("GET /api/entries", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, store.Entries())
+	api.HandleFunc("GET /api/data", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, store.Data())
 	})
 
-	api.HandleFunc("POST /api/entries", func(w http.ResponseWriter, r *http.Request) {
-		var e Entry
-		if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
-			writeError(w, http.StatusBadRequest, "geçersiz istek")
-			return
-		}
-		e, err := store.Add(e)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeJSON(w, http.StatusCreated, e)
-	})
+	// Değişiklik yapan her istek, verilerin güncel halini döner; arayüz bununla yenilenir.
+	api.HandleFunc("POST /api/exercises", withBody(func(r *http.Request, e Exercise) (Data, error) {
+		return store.AddExercise(e)
+	}))
+	api.HandleFunc("PUT /api/exercises/{id}", withBody(func(r *http.Request, e Exercise) (Data, error) {
+		return store.UpdateExercise(r.PathValue("id"), e)
+	}))
+	api.HandleFunc("DELETE /api/exercises/{id}", noBody(func(r *http.Request) (Data, error) {
+		return store.DeleteExercise(r.PathValue("id"))
+	}))
 
-	api.HandleFunc("DELETE /api/entries/{id}", func(w http.ResponseWriter, r *http.Request) {
-		if err := store.Delete(r.PathValue("id")); err != nil {
-			writeError(w, http.StatusNotFound, err.Error())
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
+	api.HandleFunc("PUT /api/workouts/{date}", withBody(func(r *http.Request, wo Workout) (Data, error) {
+		wo.Date = r.PathValue("date")
+		return store.PutWorkout(wo)
+	}))
+	api.HandleFunc("DELETE /api/workouts/{date}", noBody(func(r *http.Request) (Data, error) {
+		return store.DeleteWorkout(r.PathValue("date"))
+	}))
+
+	api.HandleFunc("POST /api/templates", withBody(func(r *http.Request, t Template) (Data, error) {
+		return store.AddTemplate(t)
+	}))
+	api.HandleFunc("PUT /api/templates/{id}", withBody(func(r *http.Request, t Template) (Data, error) {
+		return store.UpdateTemplate(r.PathValue("id"), t)
+	}))
+	api.HandleFunc("DELETE /api/templates/{id}", noBody(func(r *http.Request) (Data, error) {
+		return store.DeleteTemplate(r.PathValue("id"))
+	}))
+
+	api.HandleFunc("PUT /api/bodyweights/{date}", withBody(func(r *http.Request, b BodyWeight) (Data, error) {
+		b.Date = r.PathValue("date")
+		return store.PutBodyWeight(b)
+	}))
+	api.HandleFunc("DELETE /api/bodyweights/{date}", noBody(func(r *http.Request) (Data, error) {
+		return store.DeleteBodyWeight(r.PathValue("date"))
+	}))
+
+	api.HandleFunc("PUT /api/settings", withBody(func(r *http.Request, st Settings) (Data, error) {
+		return store.PutSettings(st)
+	}))
 
 	api.HandleFunc("GET /api/export", func(w http.ResponseWriter, r *http.Request) {
 		b, err := store.Export()
@@ -95,12 +115,12 @@ func Handler(store *Store, token string) http.Handler {
 			writeError(w, http.StatusBadRequest, "dosya okunamadı")
 			return
 		}
-		n, err := store.Import(b)
+		d, err := store.Import(b)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]int{"imported": n})
+		writeJSON(w, http.StatusOK, d)
 	})
 
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
@@ -145,6 +165,36 @@ func newToken() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// withBody, JSON gövdeli bir değişiklik isteğini işler ve güncel verileri döner.
+func withBody[T any](fn func(r *http.Request, v T) (Data, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var v T
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&v); err != nil {
+			writeError(w, http.StatusBadRequest, "geçersiz istek")
+			return
+		}
+		respond(w, func() (Data, error) { return fn(r, v) })
+	}
+}
+
+func noBody(fn func(r *http.Request) (Data, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		respond(w, func() (Data, error) { return fn(r) })
+	}
+}
+
+func respond(w http.ResponseWriter, fn func() (Data, error)) {
+	d, err := fn()
+	switch {
+	case errors.Is(err, ErrNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
+	case err != nil:
+		writeError(w, http.StatusBadRequest, err.Error())
+	default:
+		writeJSON(w, http.StatusOK, d)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
