@@ -45,7 +45,8 @@ export function workoutView(arg) {
       ? h('div', { class: 'text-center' }, button('Bugüne dön', () => go(`#/antrenman/${today()}`, true), 'ghost', 'text-sm'))
       : null
 
-  const items = w.items.map((_, i) => itemCard(date, i))
+  // Hareketler; aralarında süperset bağlantı düğmesi.
+  const items = w.items.map((_, i) => [itemCard(date, i), i < w.items.length - 1 ? linkButton(date, i) : null])
 
   const addBtn = h(
     'button',
@@ -93,7 +94,7 @@ export function workoutView(arg) {
 
   return h(
     'div',
-    { class: 'space-y-4' },
+    { class: 'space-y-3' },
     header,
     summary,
     backToToday,
@@ -227,18 +228,31 @@ function itemCard(date, i) {
   }
   if (cardio && rec.km) info.push(h('p', { class: 'text-zinc-500' }, `En uzun: ${num(rec.km)} km`))
 
+  const items = workoutFor(date).items
+  const inSuperset = (it.linkNext && i < items.length - 1) || items[i - 1]?.linkNext
   return card(
-    { id: `item-${i}` },
+    { id: `item-${i}`, class: inSuperset ? 'ring-1 ring-violet-500/50' : '' },
     h(
       'div',
       { class: 'flex items-start justify-between gap-2' },
       h(
         'button',
-        { type: 'button', class: 'text-left', onclick: () => go(`#/ilerleme/${ex.id}`) },
+        { type: 'button', class: 'min-w-0 text-left', onclick: () => go(`#/ilerleme/${ex.id}`) },
         h('h3', { class: 'text-lg font-semibold leading-tight' }, ex.name),
-        h('div', { class: 'mt-1' }, groupChip(ex.group)),
+        h(
+          'div',
+          { class: 'mt-1 flex flex-wrap gap-1' },
+          groupChip(ex.group),
+          inSuperset ? h('span', { class: 'rounded-full bg-violet-500/15 px-2 py-0.5 text-[11px] font-medium text-violet-300' }, 'Süperset') : null,
+        ),
       ),
-      h('button', { type: 'button', class: 'rounded-lg px-2 py-1 text-zinc-500 active:bg-zinc-800', onclick: () => removeItem(date, i) }, 'Çıkar'),
+      h(
+        'div',
+        { class: 'flex shrink-0 items-center' },
+        i > 0 ? iconBtn('↑', () => moveItem(date, i, -1), 'Yukarı taşı') : null,
+        i < items.length - 1 ? iconBtn('↓', () => moveItem(date, i, 1), 'Aşağı taşı') : null,
+        h('button', { type: 'button', class: 'rounded-lg px-2 py-1 text-zinc-500 active:bg-zinc-800', onclick: () => removeItem(date, i) }, 'Çıkar'),
+      ),
     ),
     h('div', { class: 'mt-2 space-y-0.5 text-sm text-zinc-300' }, info),
     it.note ? h('p', { class: 'mt-2 text-sm italic text-zinc-400' }, it.note) : null,
@@ -251,6 +265,47 @@ function itemCard(date, i) {
       !it.sets.length && !cardio ? h('p', { class: 'pt-1 text-xs text-zinc-500' }, 'İpucu: set numarasına dokunursan ısınma seti (I) olur; rekora ve grafiğe sayılmaz.') : null,
     ),
   )
+}
+
+const iconBtn = (text, onclick, label) =>
+  h('button', { type: 'button', class: 'h-8 w-8 rounded-lg text-lg text-zinc-400 active:bg-zinc-800', onclick, 'aria-label': label }, text)
+
+// İki hareket arasındaki "süperset" düğmesi: bağlıysa setler art arda yapılır, dinlenme
+// sayacı ancak gruptaki son harekette başlar.
+function linkButton(date, i) {
+  const linked = workoutFor(date).items[i].linkNext
+  return h(
+    'div',
+    { class: 'flex justify-center' },
+    h(
+      'button',
+      {
+        type: 'button',
+        class: `rounded-full px-3 py-1 text-xs ${linked ? 'bg-violet-500/20 text-violet-200' : 'text-zinc-500 active:bg-zinc-900'}`,
+        onclick: () => {
+          const w = workoutFor(date)
+          if (w.items[i].linkNext) delete w.items[i].linkNext
+          else w.items[i].linkNext = true
+          saveWorkout(w)
+          render()
+        },
+      },
+      linked ? '⛓ Süperset · ayır' : '+ süperset yap',
+    ),
+  )
+}
+
+// Hareketin yerini değiştirir. Taşınan iki hareketin süperset bağları çözülür (bağlar
+// sıraya göre tutulduğu için yer değişince anlamsızlaşır).
+function moveItem(date, i, d) {
+  const w = workoutFor(date)
+  const j = i + d
+  if (j < 0 || j >= w.items.length) return
+  for (const k of [i - 1, i, j - 1, j]) if (w.items[k]) delete w.items[k].linkNext
+  ;[w.items[i], w.items[j]] = [w.items[j], w.items[i]]
+  saveWorkout(w)
+  render()
+  document.getElementById(`item-${j}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 function setNumber(label, warmup, onclick) {
@@ -309,7 +364,14 @@ function addSet(date, i, set) {
   if (ex.kind === 'weight' && !set.warmup && rec.sessions && set.weight > rec.weight && set.weight > bestToday) {
     show(`🏆 Yeni rekor! ${ex.name}: ${num(set.weight)} kg`)
   }
-  if (date === today()) startRest(state.data.settings.restSeconds)
+  if (date !== today()) return
+  // Süpersette sıradaki harekete geçilir; dinlenme gruptaki son hareketten sonra başlar.
+  if (it.linkNext && w.items[i + 1]) {
+    show(`Süperset: sıradaki hareket → ${exercise(w.items[i + 1].exerciseId).name}`)
+    document.getElementById(`item-${i + 1}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  } else {
+    startRest(state.data.settings.restSeconds)
+  }
 }
 
 function removeSet(date, i, j) {
@@ -323,6 +385,9 @@ function removeItem(date, i) {
   const w = workoutFor(date)
   const it = w.items[i]
   if (it.sets.length && !confirm(`"${exercise(it.exerciseId).name}" ve ${it.sets.length} seti bu antrenmandan çıkarılsın mı?`)) return
+  // Önceki hareket bu harekete bağlıysa, bu hareketin kendi bağı yoksa bağ çözülür.
+  const prevItem = w.items[i - 1]
+  if (prevItem?.linkNext && !it.linkNext) delete prevItem.linkNext
   w.items.splice(i, 1)
   saveWorkout(w)
   render()
