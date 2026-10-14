@@ -175,7 +175,7 @@ function itemCard(date, i) {
     h(
       'div',
       { class: grid },
-      setNumber(s.warmup ? 'I' : j === prIndex ? '🏆' : ++workNo, s.warmup, () => toggleWarmup(date, i, j)),
+      setNumber(s.warmup ? 'I' : (++workNo, j === prIndex ? '🏆' : workNo), s.warmup, () => toggleWarmup(date, i, j)),
       setInput(boxClass, s[keyA], 'decimal', (v) => editSet(date, i, j, keyA, v)),
       setInput(boxClass, s[keyB], cardio ? 'decimal' : 'numeric', (v) => editSet(date, i, j, keyB, v)),
       rpeOn ? setInput(boxClass, s.rpe, 'decimal', (v) => editSet(date, i, j, 'rpe', v)) : null,
