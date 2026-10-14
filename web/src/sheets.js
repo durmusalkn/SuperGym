@@ -1,5 +1,5 @@
 // Alttan açılan paneller: hareket seçme, hareket düzenleme, program düzenleme.
-import { h, GROUPS, num } from './util.js'
+import { h, GROUPS, num, parseNum } from './util.js'
 import { state, mutate, activeExercises, history, records } from './state.js'
 import { openSheet, closeSheet, show, groupDot, button, input, select, go, render } from './ui.js'
 
@@ -67,13 +67,51 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
   const nameInput = input({ value: ex?.name ?? name, placeholder: 'Hareket adı (örn. Hip Thrust)', maxlength: 60 })
   const groupSelect = select({ value: ex?.group ?? 'Diğer' }, GROUPS.map((g) => [g, g]))
   const kindSelect = select({ value: ex?.kind ?? 'weight', disabled: usedBefore }, KINDS)
+  // Artırma önerisi için hedef tekrar aralığı ve ağırlık artışı (yalnızca ağırlık hareketleri).
+  const numBox = (value, placeholder) =>
+    input({ inputmode: 'decimal', value: value ? String(value).replace('.', ',') : '', placeholder, class: 'text-center' })
+  const repMin = numBox(ex?.repMin || 8, '8')
+  const repMax = numBox(ex?.repMax || 12, '12')
+  const increment = numBox(ex?.increment || 2.5, '2,5')
+  const progression = h(
+    'div',
+    { class: 'space-y-1' },
+    h('span', { class: 'text-xs text-zinc-400' }, 'Hedef tekrar aralığı ve ağırlık artışı'),
+    h(
+      'div',
+      { class: 'grid grid-cols-[1fr_auto_1fr_auto_1.2fr_auto] items-center gap-2 text-sm text-zinc-400' },
+      repMin,
+      '–',
+      repMax,
+      'tekrar',
+      increment,
+      'kg',
+    ),
+    h('p', { class: 'text-xs text-zinc-500' }, 'Tüm setlerde üst sınıra ulaşınca bir sonraki antrenmanda bu kadar artırman önerilir.'),
+  )
+  const showProgression = () => progression.classList.toggle('hidden', kindSelect.value !== 'weight')
+  kindSelect.onchange = showProgression
+  showProgression()
   groupSelect.onchange = () => {
-    if (isNew && groupSelect.value === 'Kardiyo') kindSelect.value = 'cardio'
+    if (isNew && groupSelect.value === 'Kardiyo') {
+      kindSelect.value = 'cardio'
+      showProgression()
+    }
   }
 
   async function save() {
-    const body = { name: nameInput.value.trim(), group: groupSelect.value, kind: kindSelect.value, archived: ex?.archived }
+    const weight = kindSelect.value === 'weight'
+    const body = {
+      ...(ex || {}),
+      name: nameInput.value.trim(),
+      group: groupSelect.value,
+      kind: kindSelect.value,
+      repMin: weight ? Math.round(parseNum(repMin.value)) : 0,
+      repMax: weight ? Math.round(parseNum(repMax.value)) : 0,
+      increment: weight ? parseNum(increment.value) : 0,
+    }
     if (!body.name) return show('Hareket adını yazın.', false)
+    if (weight && (!body.repMin || !body.repMax || body.repMin > body.repMax)) return show('Hedef tekrar aralığı geçersiz (örn. 8 – 12).', false)
     try {
       if (isNew) {
         const data = await mutate('POST', '/api/exercises', body)
@@ -117,6 +155,7 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
       field('Ad', nameInput),
       field('Kas grubu', groupSelect),
       field('Tür', kindSelect, usedBefore ? 'Antrenmanlarda kullanıldığı için tür değiştirilemez.' : null),
+      progression,
       button(isNew ? 'Ekle' : 'Kaydet', save, 'primary', 'w-full'),
       !isNew && rec.sessions
         ? h(

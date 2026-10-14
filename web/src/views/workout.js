@@ -1,6 +1,6 @@
 // Antrenman ekranı: seçilen günün hareketleri ve setleri.
 import { h, today, addDays, longDate, shortDate, relativeDay, isValidDate, num, parseNum } from '../util.js'
-import { state, exercise, workoutFor, saveWorkout, lastBefore, records, volume, workSets } from '../state.js'
+import { state, exercise, workoutFor, saveWorkout, lastBefore, records, volume, workSets, suggestion } from '../state.js'
 import { go, render, show, card, button, groupChip, empty } from '../ui.js'
 import { pickExercise, editTemplate } from '../sheets.js'
 import { startRest } from '../timer.js'
@@ -178,8 +178,11 @@ function itemCard(date, i) {
     ),
   )
 
-  // Yeni set satırı: bu antrenmandaki son setle, yoksa geçen seferin ilk setiyle dolu gelir.
-  const prev = it.sets[it.sets.length - 1] || last?.sets[0] || {}
+  // Yeni set satırı: bu antrenmandaki son setle, yoksa öneriyle ya da geçen seferin ilk
+  // setiyle dolu gelir.
+  const tip = suggestion(ex, date)
+  const firstWork = it.sets.find((s) => !s.warmup)
+  const prev = (!firstWork && tip ? { weight: tip.weight, reps: tip.reps } : it.sets[it.sets.length - 1]) || last?.sets[0] || {}
   let newWarmup = false
   const newNo = setNumber(workNo + 1, false, () => {
     newWarmup = !newWarmup
@@ -219,6 +222,9 @@ function itemCard(date, i) {
   if (last) info.push(h('p', {}, h('span', { class: 'text-zinc-500' }, `Geçen sefer (${shortDate(last.date)}): `), setsSummary(last.sets, cardio)))
   else info.push(h('p', { class: 'text-zinc-500' }, 'İlk kez yapılıyor'))
   if (!cardio && rec.weight) info.push(h('p', { class: 'text-zinc-500' }, `Rekor: ${num(rec.weight)} kg (${shortDate(rec.weightDate)})`))
+  if (tip && !firstWork) {
+    info.push(h('p', { class: `mt-1 rounded-lg px-2 py-1 ${tip.increase ? 'bg-emerald-500/10 text-emerald-300' : 'bg-zinc-800 text-zinc-300'}` }, `💡 ${tip.text}`))
+  }
   if (cardio && rec.km) info.push(h('p', { class: 'text-zinc-500' }, `En uzun: ${num(rec.km)} km`))
 
   return card(

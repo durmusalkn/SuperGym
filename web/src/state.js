@@ -122,3 +122,31 @@ export function records(exId, exceptDate) {
   }
   return r
 }
+
+// Artırma önerisi (çift aşamalı ilerleme): geçen sefer en ağır ağırlıktaki tüm setlerde
+// hedef aralığın üst sınırına ulaşıldıysa ağırlığı artır, ulaşılmadıysa aynı ağırlıkla
+// tekrarları artır. Ağırlık hareketi değilse ya da geçmiş yoksa null.
+export function suggestion(ex, date) {
+  if (ex.kind !== 'weight') return null
+  const last = lastBefore(ex.id, date)
+  if (!last) return null
+  const repMin = ex.repMin || 8
+  const repMax = ex.repMax || 12
+  const top = Math.max(...last.sets.map((s) => s.weight || 0))
+  const topSets = last.sets.filter((s) => (s.weight || 0) === top)
+  const allDone = topSets.every((s) => (s.reps || 0) >= repMax)
+  if (!top) {
+    return allDone ? { weight: 0, reps: repMax, increase: true, text: `Tüm setlerde ${repMax}+ tekrar yaptın: ağırlık eklemeyi dene.` } : null
+  }
+  if (allDone) {
+    const weight = Math.round((top + (ex.increment || 2.5)) * 100) / 100
+    return { weight, reps: repMin, increase: true, text: `${weight.toLocaleString('tr-TR')} kg dene (geçen sefer tüm setlerde ${repMax}+ tekrar)` }
+  }
+  const reps = Math.min(repMax, Math.max(...topSets.map((s) => s.reps || 0)) + 1)
+  return {
+    weight: top,
+    reps,
+    increase: false,
+    text: `${top.toLocaleString('tr-TR')} kg ile devam: hedef her sette ${repMax} tekrar`,
+  }
+}
