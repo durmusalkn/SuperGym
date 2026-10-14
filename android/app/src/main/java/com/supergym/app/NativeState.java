@@ -14,8 +14,9 @@ import java.util.Set;
 import java.util.TimeZone;
 
 /**
- * Arayüzün Android tarafıyla paylaştığı bilgiler (antrenman yapılan günler ve hatırlatma
- * ayarları). Hatırlatmalar ve ana ekran widget'ı uygulama kapalıyken bunları kullanır.
+ * Arayüzün Android tarafıyla paylaştığı bilgiler (antrenman yapılan günler, alarmlar ve
+ * hatırlatma ayarları). Alarmlar, hatırlatmalar ve ana ekran widget'ı uygulama kapalıyken
+ * bunları kullanır.
  */
 final class NativeState {
     private NativeState() {
@@ -25,15 +26,22 @@ final class NativeState {
         return ctx.getSharedPreferences("supergym", Context.MODE_PRIVATE);
     }
 
-    /** Arayüzden gelen JSON: {attended: [...], reminderDays: [...], reminderTime, inactiveDays}. */
+    /**
+     * Arayüzden gelen JSON: {attended: [...], reminderTime, inactiveDays, prepMinutes,
+     * snoozeMinutes, alarms: [{day, time, templateId, program, exercises: [...]}]}.
+     */
     static void save(Context ctx, String json) throws JSONException {
         JSONObject o = new JSONObject(json);
+        JSONArray alarms = o.optJSONArray("alarms");
         prefs(ctx).edit()
                 .putString("attended", join(o.getJSONArray("attended")))
-                .putString("reminder_days", join(o.getJSONArray("reminderDays")))
                 .putString("reminder_time", o.optString("reminderTime", "18:00"))
                 .putInt("inactive_days", o.optInt("inactiveDays", 0))
-                .apply();
+                .putString("alarms", alarms != null ? alarms.toString() : "[]")
+                .putInt("prep_minutes", o.optInt("prepMinutes", 0))
+                .putInt("snooze_minutes", o.optInt("snoozeMinutes", 10))
+                .remove("reminder_days")
+                .commit();
     }
 
     private static String join(JSONArray a) throws JSONException {
@@ -56,8 +64,16 @@ final class NativeState {
         return split(prefs(ctx).getString("attended", ""));
     }
 
-    static Set<String> reminderDays(Context ctx) {
-        return split(prefs(ctx).getString("reminder_days", ""));
+    static String alarms(Context ctx) {
+        return prefs(ctx).getString("alarms", "[]");
+    }
+
+    static int prepMinutes(Context ctx) {
+        return prefs(ctx).getInt("prep_minutes", 0);
+    }
+
+    static int snoozeMinutes(Context ctx) {
+        return Math.max(1, prefs(ctx).getInt("snooze_minutes", 10));
     }
 
     static String reminderTime(Context ctx) {

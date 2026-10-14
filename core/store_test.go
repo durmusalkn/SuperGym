@@ -33,8 +33,8 @@ func exerciseID(t *testing.T, d Data, name string) string {
 func TestFreshStoreHasDefaults(t *testing.T) {
 	s, dir := newTestStore(t)
 	d := s.Data()
-	if len(d.Exercises) != len(defaultExercises) {
-		t.Fatalf("hazır hareket sayısı %d, %d olmalı", len(d.Exercises), len(defaultExercises))
+	if len(d.Exercises) != len(catalog) {
+		t.Fatalf("hazır hareket sayısı %d, %d olmalı", len(d.Exercises), len(catalog))
 	}
 	if d.Settings.RestSeconds != defaultRestSeconds {
 		t.Fatalf("dinlenme süresi %d", d.Settings.RestSeconds)
@@ -139,12 +139,12 @@ func TestValidationLeavesDataUnchanged(t *testing.T) {
 
 func TestAddExerciseDefaults(t *testing.T) {
 	s, _ := newTestStore(t)
-	d, err := s.AddExercise(Exercise{Name: " Hip Thrust ", Group: "uydurma", ID: "elle"})
+	d, err := s.AddExercise(Exercise{Name: " Kendi Hareketim ", Group: "uydurma", ID: "elle", Muscle: "Kalça"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	e := d.Exercises[len(d.Exercises)-1]
-	if e.Name != "Hip Thrust" || e.Group != "Diğer" || e.Kind != KindWeight || e.ID == "elle" || e.ID == "" {
+	if e.Name != "Kendi Hareketim" || e.Group != "Diğer" || e.Muscle != "" || e.Kind != KindWeight || e.ID == "elle" || e.ID == "" {
 		t.Fatalf("beklenmeyen hareket: %+v", e)
 	}
 }
@@ -155,6 +155,7 @@ func TestDeleteExercise(t *testing.T) {
 	sq, lp := exerciseID(t, d, "Squat"), exerciseID(t, d, "Leg Press")
 	s.PutWorkout(Workout{Date: "2026-10-14", Items: []Item{{ExerciseID: sq, Sets: []Set{{Reps: 5, Weight: 100}}}}})
 	s.AddTemplate(Template{Name: "Bacak", ExerciseIDs: []string{sq, lp}})
+	mine := len(builtinPrograms) // kendi programları hazır programlardan sonra gelir
 
 	// Kullanılmamış hareket tamamen silinir ve programdan çıkar.
 	d, err := s.DeleteExercise(lp)
@@ -166,7 +167,7 @@ func TestDeleteExercise(t *testing.T) {
 			t.Fatal("kullanılmamış hareket silinmedi")
 		}
 	}
-	if ids := d.Templates[0].ExerciseIDs; len(ids) != 1 || ids[0] != sq {
+	if ids := d.Templates[mine].ExerciseIDs; len(ids) != 1 || ids[0] != sq {
 		t.Fatalf("program güncellenmedi: %v", ids)
 	}
 
@@ -187,7 +188,7 @@ func TestDeleteExercise(t *testing.T) {
 	if len(d.Workouts[0].Items) != 1 {
 		t.Fatal("arşivleme antrenmanı bozdu")
 	}
-	if len(d.Templates[0].ExerciseIDs) != 0 {
+	if len(d.Templates[mine].ExerciseIDs) != 0 {
 		t.Fatal("arşivlenen hareket programda kaldı")
 	}
 
@@ -220,7 +221,7 @@ func TestMigrateV1(t *testing.T) {
 		t.Fatalf("sürüm %d", d.Version)
 	}
 	bench, mine := exerciseID(t, d, "Bench Press"), exerciseID(t, d, "Kendi Hareketim")
-	if len(d.Exercises) != len(defaultExercises)+1 {
+	if len(d.Exercises) != len(catalog)+1 {
 		t.Fatalf("hareket sayısı %d", len(d.Exercises))
 	}
 	if len(d.Workouts) != 2 {
@@ -347,7 +348,7 @@ func TestUpgradeV2(t *testing.T) {
 	}
 	d := s.Data()
 	st := d.Settings
-	if d.Version != 3 || st.RestSeconds != 120 || st.BackupDays != defaultBackupDays || st.ReminderTime != defaultReminderTime || st.ReminderDays == nil {
+	if d.Version != schemaVersion || st.RestSeconds != 120 || st.BackupDays != defaultBackupDays || st.ReminderTime != defaultReminderTime || st.ReminderDays == nil {
 		t.Fatalf("ayarlar yükseltilmedi: %+v", st)
 	}
 	sq, run := d.Exercises[0], d.Exercises[1]

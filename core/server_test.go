@@ -84,7 +84,7 @@ func TestAPIFlow(t *testing.T) {
 		t.Fatalf("ilk veri eksik: %+v", d)
 	}
 
-	decode(do(t, "POST", base+"/api/exercises", token, `{"name":"Hip Thrust","group":"Bacak"}`), http.StatusOK)
+	decode(do(t, "POST", base+"/api/exercises", token, `{"name":"Kendi Hareketim","group":"Bacak"}`), http.StatusOK)
 	id := d.Exercises[len(d.Exercises)-1].ID
 	decode(do(t, "POST", base+"/api/exercises", token, `{"name":""}`), http.StatusBadRequest)
 
@@ -102,12 +102,12 @@ func TestAPIFlow(t *testing.T) {
 
 	res := do(t, "GET", base+"/api/export", token, "")
 	backup, _ := io.ReadAll(res.Body)
-	if res.StatusCode != http.StatusOK || !strings.Contains(string(backup), "Hip Thrust") {
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(backup), "Kendi Hareketim") {
 		t.Fatalf("dışa aktarma: %d %s", res.StatusCode, backup)
 	}
 	decode(do(t, "DELETE", base+"/api/workouts/2026-10-14", token, ""), http.StatusOK)
 	decode(do(t, "POST", base+"/api/import", token, string(backup)), http.StatusOK)
-	if len(d.Workouts) != 1 || d.Settings.RestSeconds != 120 || len(d.Templates) != 1 {
+	if len(d.Workouts) != 1 || d.Settings.RestSeconds != 120 || len(d.Templates) != len(builtinPrograms)+1 {
 		t.Fatalf("içe aktarma verileri geri getirmedi: %+v", d)
 	}
 }
@@ -132,4 +132,42 @@ func TestStaticWithoutToken(t *testing.T) {
 	if res := do(t, "GET", base+"/", "", ""); res.StatusCode != http.StatusOK {
 		t.Fatalf("arayüz anahtarsız açılmalı: %d", res.StatusCode)
 	}
+}
+
+func TestAPIForkAndReset(t *testing.T) {
+	base, token := startTestServer(t)
+	var d Data
+	call := func(method, path, body string, want int) {
+		t.Helper()
+		res := do(t, method, base+path, token, body)
+		b, _ := io.ReadAll(res.Body)
+		if res.StatusCode != want {
+			t.Fatalf("%s %s: durum %d, %d olmalı: %s", method, path, res.StatusCode, want, b)
+		}
+		if want == http.StatusOK {
+			d = Data{}
+			if err := json.Unmarshal(b, &d); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	call("POST", "/api/templates/builtin-push/fork", "", http.StatusOK)
+	if last := d.Templates[len(d.Templates)-1]; last.ForkOf != "builtin-push" {
+		t.Fatalf("kopya: %+v", last)
+	}
+	call("PUT", "/api/templates/builtin-push", `{"name":"X","exerciseIds":[]}`, http.StatusBadRequest)
+	call("DELETE", "/api/templates/builtin-push", "", http.StatusBadRequest)
+	call("POST", "/api/templates/yok/fork", "", http.StatusNotFound)
+
+	call("PUT", "/api/bodyweights/2026-10-14", `{"kg":80}`, http.StatusOK)
+	call("POST", "/api/reset", `{"scope":"history"}`, http.StatusOK)
+	if len(d.BodyWeights) != 0 || len(d.Templates) != len(builtinPrograms)+1 {
+		t.Fatalf("geçmiş sıfırlama: %+v", d)
+	}
+	call("POST", "/api/reset", `{"scope":"all"}`, http.StatusOK)
+	if len(d.Templates) != len(builtinPrograms) {
+		t.Fatal("fabrika ayarlarına dönmedi")
+	}
+	call("POST", "/api/reset", `{}`, http.StatusBadRequest)
 }

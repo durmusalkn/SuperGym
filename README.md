@@ -11,8 +11,19 @@ Bulut yok: veriler telefondaki bir JSON dosyasında tutulur, dışa/içe aktarma
 - **Dinlenme sayacı:** bugünün antrenmanına set eklenince başlar, bitince titreşir (süresi Ayarlar'dan).
 - **Takvim:** gidilen günler ve çalışılan kas grupları; haftalık/aylık gün sayısı ve hafta serisi.
 - **İlerleme:** hareket başına grafik (en ağır set, tahmini 1RM, hacim, tekrar) ve geçmiş; vücut ağırlığı takibi.
-- **Hareketler:** hazır liste + kendi hareketlerin; kullanılmış hareket silinince arşivlenir, geçmiş bozulmaz.
-- **Programlar:** "Push", "Bacak günü" gibi şablonlar; antrenmana tek dokunuşla eklenir.
+- **Hareketler:** tüm kas grupları için ~110 hareketlik hazır liste (hedef kasıyla: üst göğüs, kanat, arka bacak…)
+  + kendi hareketlerin; kullanılmış hareket silinince arşivlenir, geçmiş bozulmaz.
+- **Puan:** hareketlere 1-5 yıldız ("★ Puanla" ile hızlıca); 1 puanlı hareketler programlara seçilmez.
+- **Programlar:** hazır Push, Pull, Legs, Upper, Lower ve Full Body programlarının hareketleri puanlarına ve
+  hedef kaslara göre otomatik seçilir. Hazır programlar değiştirilemez; kopyası (fork) oluşturulup düzenlenir,
+  kopya asıl programdan bağımsızdır. Kendi programların da antrenmana tek dokunuşla eklenir.
+- **Antrenman alarmları (Plan sekmesi):** her gün için ayrı saat ve program (örn. Salı 18:00 Push, Cumartesi
+  09:00 Legs). Gitme saatinden önce o günün hareketlerini gösteren hazırlık bildirimi; gitme saatinde uygulama
+  kapalıyken de yüklediğin resim tam ekran açılır ve alarm çalar. "Antrenmana girdim" denene ya da o gün set
+  girilene kadar 5 dakikada bir tekrar çalar (en fazla 2 saat); erteleme ve "Bugün gitmiyorum" da var.
+  "Antrenmana girdim" uygulamayı o günün programıyla açar.
+- **Verileri sıfırla:** yalnızca antrenman geçmişi (hareketler, puanlar, programlar ve alarmlar kalır) ya da
+  fabrika ayarları.
 - **Isınma seti ve zorluk (RPE):** set numarasına dokununca ısınma seti olur (rekora ve grafiğe sayılmaz);
   RPE kutusu Ayarlar'dan açılır.
 - **Artırma önerisi:** geçen sefer tüm setlerde hedef tekrarın üst sınırına ulaşıldıysa ağırlık artışı önerilir
@@ -20,10 +31,11 @@ Bulut yok: veriler telefondaki bir JSON dosyasında tutulur, dışa/içe aktarma
 - **Süperset ve sıralama:** iki hareket bağlanınca dinlenme gruptaki son hareketten sonra başlar; ↑/↓ ile sıra değişir.
 - **Antrenman süresi ve hareket notu:** ilk/son setin saati otomatik tutulur; harekete kalıcı not eklenebilir.
 - **Kas grubu dengesi:** son 7/30 günde hangi gruba kaç set yapıldığı.
-- **Android:** dinlenme sayacı arka planda bildirimle sürer; antrenman günü / uzun ara hatırlatmaları;
+- **Android:** dinlenme sayacı arka planda bildirimle sürer; uzun ara hatırlatması;
   ana ekran widget'ı (bu hafta, seri, son antrenman); İndirilenler/SuperGym klasörüne otomatik yedek.
 - **Yedek:** dışa/içe aktarma. Eski sürümün verileri ve yedekleri otomatik olarak yeni yapıya çevrilir
-  (çevrilmeden önceki dosya `supergym.json.v1-yedek` olarak saklanır).
+  (çevrilmeden önceki dosya `supergym.json.vN-yedek` olarak saklanır). 4. sürümde eksik hazır hareketler
+  eklenir, eski "antrenman günlerim" hatırlatmaları aynı saatte çalan alarmlara dönüşür. Alarm resmi yedeğe girmez.
 
 ## Yapı
 

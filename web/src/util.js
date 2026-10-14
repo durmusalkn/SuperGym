@@ -104,6 +104,18 @@ export const duration = (sec) => `${Math.floor(sec / 60)}:${pad(Math.max(0, sec 
 
 export const GROUPS = ['Göğüs', 'Sırt', 'Bacak', 'Omuz', 'Kol', 'Karın', 'Kardiyo', 'Diğer']
 
+// Her grubun hedef kasları (core.Muscles ile aynı).
+export const MUSCLES = {
+  Göğüs: ['Göğüs', 'Üst göğüs', 'Alt göğüs'],
+  Sırt: ['Kanat', 'Orta sırt', 'Trapez', 'Bel'],
+  Bacak: ['Ön bacak', 'Arka bacak', 'Kalça', 'Baldır', 'İç bacak'],
+  Omuz: ['Ön omuz', 'Yan omuz', 'Arka omuz'],
+  Kol: ['Biceps', 'Triceps', 'Ön kol'],
+  Karın: ['Karın', 'Alt karın', 'Yan karın', 'Core'],
+  Kardiyo: [],
+  Diğer: [],
+}
+
 // Kas grubu renkleri (Ritim paleti).
 export const GROUP_COLORS = {
   Göğüs: { hex: '#ff8a6b' },
