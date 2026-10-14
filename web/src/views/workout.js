@@ -14,10 +14,10 @@ export function setsSummary(sets, cardio) {
   const parts = []
   for (const s of sets) {
     const last = parts[parts.length - 1]
-    if (last && last.reps === s.reps && last.weight === s.weight) last.n++
+    if (last && last.reps === s.reps && last.weight === s.weight && last.rpe === s.rpe) last.n++
     else parts.push({ ...s, n: 1 })
   }
-  return parts.map((p) => `${p.n > 1 ? `${p.n}×` : ''}${p.weight ? `${num(p.weight)} kg × ` : ''}${p.reps || 0}`).join(' · ')
+  return parts.map((p) => `${p.n > 1 ? `${p.n}×` : ''}${p.weight ? `${num(p.weight)} kg × ` : ''}${p.reps || 0}${p.rpe ? ` @${num(p.rpe)}` : ''}`).join(' · ')
 }
 
 export function workoutView(arg) {
@@ -163,7 +163,9 @@ function itemCard(date, i) {
   const keyA = cardio ? 'minutes' : 'weight'
   const keyB = cardio ? 'km' : 'reps'
 
-  const grid = 'grid grid-cols-[2rem_1fr_1fr_2.75rem] items-center gap-2'
+  // Zorluk (RPE) kutusu Ayarlar'dan açılır.
+  const rpeOn = !cardio && state.data.settings.showRpe
+  const grid = `grid ${rpeOn ? 'grid-cols-[2rem_1fr_1fr_3rem_2.75rem]' : 'grid-cols-[2rem_1fr_1fr_2.75rem]'} items-center gap-2`
   const boxClass = 'w-full rounded-lg bg-zinc-800 px-2 py-2 text-center text-base outline-none focus:ring-2 focus:ring-emerald-500'
 
   // Girilmiş setler: kutular doğrudan düzenlenebilir. Set numarasına dokununca set
@@ -176,6 +178,7 @@ function itemCard(date, i) {
       setNumber(s.warmup ? 'I' : j === prIndex ? '🏆' : ++workNo, s.warmup, () => toggleWarmup(date, i, j)),
       setInput(boxClass, s[keyA], 'decimal', (v) => editSet(date, i, j, keyA, v)),
       setInput(boxClass, s[keyB], cardio ? 'decimal' : 'numeric', (v) => editSet(date, i, j, keyB, v)),
+      rpeOn ? setInput(boxClass, s.rpe, 'decimal', (v) => editSet(date, i, j, 'rpe', v)) : null,
       h(
         'button',
         { type: 'button', class: 'h-10 rounded-lg text-zinc-500 active:bg-zinc-800', onclick: () => removeSet(date, i, j), 'aria-label': 'Seti sil' },
@@ -201,12 +204,14 @@ function itemCard(date, i) {
     placeholder: colB,
     class: `${boxClass} bg-zinc-950 ring-1 ring-zinc-700`,
   })
+  const newR = rpeOn ? h('input', { inputmode: 'decimal', placeholder: 'RPE', class: `${boxClass} bg-zinc-950 ring-1 ring-zinc-700` }) : null
   const addRow = h(
     'div',
     { class: grid },
     newNo,
     newA,
     newB,
+    newR,
     h(
       'button',
       {
@@ -217,6 +222,7 @@ function itemCard(date, i) {
             [keyA]: parseNum(newA.value),
             [keyB]: keyB === 'reps' ? Math.round(parseNum(newB.value)) : parseNum(newB.value),
             ...(newWarmup ? { warmup: true } : {}),
+            ...(newR && rpeValue(newR.value) ? { rpe: rpeValue(newR.value) } : {}),
           }),
         'aria-label': 'Set ekle',
       },
@@ -271,7 +277,7 @@ function itemCard(date, i) {
     h(
       'div',
       { class: 'mt-3 space-y-2' },
-      h('div', { class: `${grid} text-center text-xs text-zinc-500` }, h('span', {}, 'Set'), h('span', {}, colA), h('span', {}, colB), h('span')),
+      h('div', { class: `${grid} text-center text-xs text-zinc-500` }, h('span', {}, 'Set'), h('span', {}, colA), h('span', {}, colB), rpeOn ? h('span', {}, 'RPE') : null, h('span')),
       rows,
       addRow,
       !it.sets.length && !cardio ? h('p', { class: 'pt-1 text-xs text-zinc-500' }, 'İpucu: set numarasına dokunursan ısınma seti (I) olur; rekora ve grafiğe sayılmaz.') : null,
@@ -341,6 +347,12 @@ function toggleWarmup(date, i, j) {
   render()
 }
 
+// Zorluk 1-10 arası, yarım puanlarla; boşsa 0 (girilmedi).
+function rpeValue(raw) {
+  const v = parseNum(raw)
+  return v ? Math.min(10, Math.max(1, Math.round(v * 2) / 2)) : 0
+}
+
 function setInput(cls, value, mode, onchange) {
   return h('input', {
     inputmode: mode,
@@ -355,7 +367,12 @@ function editSet(date, i, j, key, raw) {
   const w = workoutFor(date)
   const s = w.items[i]?.sets[j]
   if (!s) return
-  s[key] = key === 'reps' ? Math.round(parseNum(raw)) : parseNum(raw)
+  if (key === 'rpe') {
+    if (rpeValue(raw)) s.rpe = rpeValue(raw)
+    else delete s.rpe
+  } else {
+    s[key] = key === 'reps' ? Math.round(parseNum(raw)) : parseNum(raw)
+  }
   saveWorkout(w)
   const summary = document.getElementById('day-summary')
   if (summary) summary.textContent = summaryText(w)

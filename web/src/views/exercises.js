@@ -99,6 +99,15 @@ function templatesSection() {
   ]
 }
 
+export async function saveSettings(change) {
+  try {
+    await mutate('PUT', '/api/settings', { ...state.data.settings, ...change })
+    show('Kaydedildi.')
+  } catch {
+    // mutate hatayı gösterdi
+  }
+}
+
 function settingsSection() {
   const options = [
     [0, 'Kapalı'],
@@ -115,18 +124,27 @@ function settingsSection() {
         select(
           {
             value: state.data.settings.restSeconds,
-            onchange: async (ev) => {
-              try {
-                await mutate('PUT', '/api/settings', { ...state.data.settings, restSeconds: Number(ev.target.value) })
-                show('Kaydedildi.')
-              } catch {
-                // mutate hatayı gösterdi
-              }
-            },
+            onchange: (ev) => saveSettings({ restSeconds: Number(ev.target.value) }),
           },
           options,
         ),
         h('p', { class: 'text-xs text-zinc-500' }, 'Bugünün antrenmanına set eklediğinde başlar, bitince titreşir.'),
+      ),
+      h(
+        'label',
+        { class: 'mt-4 flex items-start gap-3' },
+        h('input', {
+          type: 'checkbox',
+          class: 'mt-0.5 h-5 w-5 accent-emerald-500',
+          checked: !!state.data.settings.showRpe,
+          onchange: (ev) => saveSettings({ showRpe: ev.target.checked }),
+        }),
+        h(
+          'span',
+          {},
+          h('span', { class: 'block text-sm' }, 'Setlerde zorluk (RPE) kutusu'),
+          h('span', { class: 'block text-xs text-zinc-500' }, '1 = çok kolay, 10 = bir tekrar daha yapamazdın. İsteğe bağlı; boş bırakılabilir.'),
+        ),
       ),
     ),
   ]
