@@ -8,7 +8,7 @@ import { openSheet, card, button, input, sectionTitle, android, show } from './u
 import { setsSummary } from './views/workout.js'
 
 export const COACH_SYSTEM =
-  'Sen SuperGym uygulamasındaki kişisel antrenörsün. Kısa, net ve Türkçe cevap ver. Emoji kullanma. ' +
+  'Sen SuperGym uygulamasındaki kişisel antrenörsün. Kısa, net ve Türkçe cevap ver. Emoji ve Markdown kullanma; düz metin yaz. ' +
   'Önerilerini kullanıcının kayıtlarına dayandır. Ağrı ya da sağlık riski görürsen doktora yönlendir.'
 
 // Son 4 haftanın özeti ve soru. Yalnızca antrenman bilgisi gönderilir (ad, not yok).
@@ -41,8 +41,15 @@ const resultBox = () => h('div', { class: 'mt-3 hidden whitespace-pre-wrap round
 
 function showResult(box, text, meta = '', ok = true) {
   box.classList.remove('hidden')
-  box.replaceChildren(h('div', {}, h('p', { class: ok ? '' : 'text-[#ffb3be]' }, ok ? text : capitalize(text)), meta ? h('p', { class: 'mt-2 text-xs text-muted' }, meta) : null))
+  box.replaceChildren(h('div', {}, h('p', { class: ok ? '' : 'text-[#ffb3be]' }, ok ? plain(text) : capitalize(text)), meta ? h('p', { class: 'mt-2 text-xs text-muted' }, meta) : null))
 }
+
+// Model yine de Markdown kullanırsa işaretleri kaldır: **kalın**, # başlık, * madde.
+const plain = (s) =>
+  s
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^(\s*)[*]\s+/gm, '$1- ')
 
 const capitalize = (s) => s.charAt(0).toLocaleUpperCase('tr') + s.slice(1)
 
