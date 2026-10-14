@@ -1,7 +1,7 @@
 import './style.css'
-import { h } from './util.js'
-import { state, api, reload, setErrorHandler } from './state.js'
-import { route, setRender, show } from './ui.js'
+import { h, today, addDays } from './util.js'
+import { state, api, mutate, reload, setErrorHandler } from './state.js'
+import { route, setRender, show, android } from './ui.js'
 import { workoutView } from './views/workout.js'
 import { calendarView } from './views/calendar.js'
 import { progressView } from './views/progress.js'
@@ -70,11 +70,37 @@ document.getElementById('import-file').onchange = (ev) => {
   if (file) importData(file)
 }
 
+// Otomatik yedek: ayarlanan aralık dolduysa uygulama açılınca telefonun İndirilenler/SuperGym
+// klasörüne yedek alınır (yalnızca Android uygulamasında).
+let backingUp = false
+async function autoBackup() {
+  const st = state.data?.settings
+  if (backingUp || !android()?.autoBackup || !st?.backupDays || !state.data.workouts.length) return
+  if (st.lastBackup && st.lastBackup > addDays(today(), -st.backupDays)) return
+  backingUp = true
+  try {
+    const data = await api('/api/export')
+    if (android().autoBackup(`supergym-otomatik-${today()}.json`, JSON.stringify(data, null, 2))) {
+      await mutate('PUT', '/api/settings', { ...state.data.settings, lastBackup: today() })
+      // Yalnızca ayarların göründüğü sekmede yenile (başka sekmede yazılanı bozmasın).
+      if (route().tab === 'hareketler') render()
+    }
+  } catch {
+    // Bir sonraki açılışta tekrar denenir.
+  } finally {
+    backingUp = false
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) autoBackup()
+})
+
 async function start() {
   const { warning } = await api('/api/status')
   await reload()
   render()
   if (warning) show(warning, false, true)
+  autoBackup()
 }
 
 start().catch((err) => show(err.message, false, true))

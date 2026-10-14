@@ -185,6 +185,18 @@ public class MainActivity extends Activity {
                     new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_PERMISSION));
         }
 
+        // Otomatik yedek: başarılıysa true. Android 9 ve öncesinde izin yoksa izin ister
+        // ve false döner (bir sonraki açılışta tekrar denenir).
+        @JavascriptInterface
+        public boolean autoBackup(String fileName, String content) {
+            if (Backup.needsPermission(MainActivity.this)) {
+                runOnUiThread(() -> requestPermissions(
+                        new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_PERMISSION));
+                return false;
+            }
+            return Backup.write(MainActivity.this, fileName, content);
+        }
+
         @JavascriptInterface
         public boolean notificationsAllowed() {
             return Notifications.allowed(MainActivity.this);

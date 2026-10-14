@@ -1,5 +1,5 @@
 // Hareketler sekmesi: hareket listesi, arşiv, programlar, ayarlar ve yedek.
-import { h, today, num, GROUPS } from '../util.js'
+import { h, today, num, shortDate, GROUPS } from '../util.js'
 import { state, api, mutate, exercise, records } from '../state.js'
 import { render, show, card, button, select, sectionTitle, groupDot, android } from '../ui.js'
 import { editExercise, editTemplate } from '../sheets.js'
@@ -151,12 +151,36 @@ function settingsSection() {
 }
 
 function backupSection() {
+  const st = state.data.settings
+  const nativeBackup = !!android()?.autoBackup
   return [
     sectionTitle('Yedek'),
     card(
       {},
       h('p', { class: 'mb-3 text-sm text-zinc-400' }, 'Veriler yalnızca bu telefonda durur. Uygulamayı silmeden ya da telefon değiştirmeden önce dışa aktararak yedek al.'),
       h('div', { class: 'grid grid-cols-2 gap-2' }, button('Dışa aktar', exportData, 'secondary'), button('İçe aktar', () => document.getElementById('import-file').click(), 'secondary')),
+      h(
+        'div',
+        { class: 'mt-4 space-y-1 border-t border-zinc-800 pt-4' },
+        h('span', { class: 'text-sm' }, 'Otomatik yedek'),
+        select(
+          { value: st.backupDays, disabled: !nativeBackup, onchange: (ev) => saveSettings({ backupDays: Number(ev.target.value) }) },
+          [
+            [0, 'Kapalı'],
+            [1, 'Her gün'],
+            [3, '3 günde bir'],
+            [7, 'Haftada bir'],
+            [14, '2 haftada bir'],
+          ],
+        ),
+        h(
+          'p',
+          { class: 'text-xs text-zinc-500' },
+          nativeBackup
+            ? `Uygulamayı açtığında süresi dolduysa telefonun İndirilenler/SuperGym klasörüne kaydedilir; uygulama silinse de kalır. Son 8 yedek tutulur.${st.lastBackup ? ` Son otomatik yedek: ${shortDate(st.lastBackup)}.` : ''}`
+            : 'Yalnızca Android uygulamasında çalışır.',
+        ),
+      ),
     ),
   ]
 }
