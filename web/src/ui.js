@@ -47,7 +47,10 @@ export function go(hash, replace = false) {
 // Panel açılınca geçmişe bir adım eklenir; telefonun geri tuşu paneli kapatır.
 
 let afterClose = null
-export function openSheet(title, body) {
+let onSheetClose = null
+// onClose: panel nasıl kapanırsa kapansın (X, geri tuşu) sonra çalışır.
+export function openSheet(title, body, onClose = null) {
+  onSheetClose = onClose
   const el = document.getElementById('sheet')
   el.replaceChildren(
     h(
@@ -82,8 +85,9 @@ function hideSheet() {
   document.getElementById('sheet').classList.add('hidden')
   document.getElementById('sheet').replaceChildren()
   document.body.classList.remove('overflow-hidden')
-  const fn = afterClose
+  const fn = afterClose || onSheetClose
   afterClose = null
+  onSheetClose = null
   if (fn) fn()
 }
 
@@ -150,6 +154,8 @@ const ICONS = {
   link: 'M9 15l6-6M10.5 6.5l1-1a4 4 0 015.7 5.7l-1 1M13.5 17.5l-1 1a4 4 0 01-5.7-5.7l1-1',
   trash: 'M5 7h14M10 11v6M14 11v6M7 7l1 12h8l1-12M9 7V4h6v3',
   note: 'M6 4h9l3 3v13H6zM9 10h6M9 14h6',
+  copy: 'M9 9h10v10H9zM5 15V5h10',
+  bell: 'M6 16V11a6 6 0 0112 0v5l1.5 2h-15zM10 20.5a2 2 0 004 0',
 }
 export const icon = (name, size = 20, color = 'currentColor', width = 2) =>
   svg(
@@ -165,3 +171,40 @@ export const roundBtn = (name, onclick, label, extra = '') =>
     { type: 'button', class: `flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-text active:bg-surface ${extra}`, onclick, 'aria-label': label },
     icon(name, 18),
   )
+
+// 5 yıldızlı puan. onchange verilirse dokunulabilir (aynı yıldıza tekrar dokunmak puanı
+// siler); verilmezse yalnızca gösterir.
+const STAR = 'M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z'
+export function stars(value, onchange, size = 22) {
+  const wrap = h('span', { class: 'inline-flex shrink-0 items-center', role: onchange ? 'radiogroup' : 'img', 'aria-label': `${value || 0} / 5 puan` })
+  const paint = (v) =>
+    wrap.replaceChildren(
+      ...[1, 2, 3, 4, 5].map((n) => {
+        const star = svg(
+          'svg',
+          { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': 'true' },
+          svg('path', { d: STAR, fill: n <= v ? '#ffc15e' : 'none', stroke: n <= v ? '#ffc15e' : '#5b5378', 'stroke-width': 1.6, 'stroke-linejoin': 'round' }),
+        )
+        if (!onchange) return star
+        return h(
+          'button',
+          {
+            type: 'button',
+            role: 'radio',
+            'aria-checked': n === v ? 'true' : 'false',
+            'aria-label': `${n} puan`,
+            class: 'flex items-center justify-center p-1 active:scale-90',
+            onclick: (ev) => {
+              ev.stopPropagation()
+              v = n === v ? 0 : n
+              paint(v)
+              onchange(v)
+            },
+          },
+          star,
+        )
+      }),
+    )
+  paint(value || 0)
+  return wrap
+}

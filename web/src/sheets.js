@@ -1,7 +1,7 @@
 // Alttan açılan paneller: hareket seçme, hareket düzenleme, program düzenleme.
-import { h, GROUPS, num, parseNum } from './util.js'
-import { state, mutate, activeExercises, history, records } from './state.js'
-import { openSheet, closeSheet, show, groupDot, button, input, select, go, render } from './ui.js'
+import { h, GROUPS, MUSCLES, num, parseNum } from './util.js'
+import { state, mutate, activeExercises, history, records, exercise } from './state.js'
+import { openSheet, closeSheet, show, groupDot, button, input, select, go, render, stars, icon } from './ui.js'
 
 const KINDS = [
   ['weight', 'Ağırlık (kg × tekrar)'],
@@ -66,6 +66,16 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
   const usedBefore = !isNew && history(ex.id).length > 0
   const nameInput = input({ value: ex?.name ?? name, placeholder: 'Hareket adı (örn. Hip Thrust)', maxlength: 60 })
   const groupSelect = select({ value: ex?.group ?? 'Diğer' }, GROUPS.map((g) => [g, g]))
+  // Hedef kas: seçili grubun kasları. Hazır programlar hareketleri buna göre seçer.
+  const muscleBox = h('div', {})
+  let muscleSelect
+  const fillMuscles = (value) => {
+    const list = MUSCLES[groupSelect.value] || []
+    muscleSelect = select({ value }, [['', '—'], ...list.map((m) => [m, m])])
+    muscleBox.replaceChildren(list.length ? field('Hedef kas', muscleSelect, 'Hazır programlar (Push, Pull, Legs…) hareketleri hedef kasa ve puanına göre seçer.') : '')
+  }
+  fillMuscles(ex?.muscle ?? '')
+  let rating = ex?.rating || 0
   const kindSelect = select({ value: ex?.kind ?? 'weight', disabled: usedBefore }, KINDS)
   // Artırma önerisi için hedef tekrar aralığı ve ağırlık artışı (yalnızca ağırlık hareketleri).
   const numBox = (value, placeholder) =>
@@ -100,6 +110,7 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
   kindSelect.onchange = showProgression
   showProgression()
   groupSelect.onchange = () => {
+    fillMuscles('')
     if (isNew && groupSelect.value === 'Kardiyo') {
       kindSelect.value = 'cardio'
       showProgression()
@@ -112,6 +123,8 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
       ...(ex || {}),
       name: nameInput.value.trim(),
       group: groupSelect.value,
+      muscle: muscleSelect.value,
+      rating,
       kind: kindSelect.value,
       note: noteInput.value.trim(),
       repMin: weight ? Math.round(parseNum(repMin.value)) : 0,
@@ -162,6 +175,8 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
       { class: 'space-y-4' },
       field('Ad', nameInput),
       field('Kas grubu', groupSelect),
+      muscleBox,
+      field('Puanın', h('div', {}, stars(rating, (v) => (rating = v), 30)), 'Sevdiğin hareketlere yüksek puan ver; 1 puan verdiğin hareket programlara seçilmez.'),
       field('Tür', kindSelect, usedBefore ? 'Antrenmanlarda kullanıldığı için tür değiştirilemez.' : null),
       progression,
       field('Not (antrenmanda hareketin altında görünür)', noteInput),
@@ -182,9 +197,56 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
   if (isNew && !name) setTimeout(() => nameInput.focus(), 50)
 }
 
+// Programın kopyasını (fork) oluşturur ve kopyayı düzenlemek için açar.
+async function forkTemplate(t) {
+  try {
+    const data = await mutate('POST', `/api/templates/${t.id}/fork`)
+    const fork = data.templates[data.templates.length - 1]
+    closeSheet(() => {
+      show(`"${fork.name}" oluşturuldu. Değişikliklerin "${t.name}" programını etkilemez.`)
+      render()
+      editTemplate(fork)
+    })
+  } catch {
+    // mutate hatayı gösterdi
+  }
+}
+
+// Hazır program: hareketleri puanlara göre otomatik seçilir, değiştirilemez.
+function viewBuiltin(t) {
+  const list = t.exerciseIds.map(exercise).filter(Boolean)
+  openSheet(
+    t.name,
+    h(
+      'div',
+      { class: 'space-y-4' },
+      h('p', { class: 'text-sm text-muted' }, 'Hazır program: hareketler puanlarına ve hedef kaslara göre otomatik seçilir, puan verdikçe güncellenir. Değiştirmek istersen kopyasını oluştur; kopya bundan bağımsızdır.'),
+      list.length
+        ? h(
+            'ol',
+            { class: 'space-y-1' },
+            list.map((e, i) =>
+              h(
+                'li',
+                { class: 'flex items-center gap-3 rounded-[20px] bg-zinc-900 px-4 py-2.5' },
+                h('span', { class: 'w-5 text-sm text-zinc-500' }, `${i + 1}.`),
+                h('span', { class: 'min-w-0 flex-1' }, h('span', { class: 'block truncate' }, e.name), h('span', { class: 'block text-xs text-muted' }, e.muscle || e.group)),
+                stars(e.rating, null, 14),
+              ),
+            ),
+          )
+        : h('p', { class: 'text-sm text-zinc-500' }, 'Bu program için uygun hareket yok.'),
+      button([icon('copy', 18), ' Kopyasını oluştur'], () => forkTemplate(t), 'primary', 'flex w-full items-center justify-center gap-1'),
+      button('Hareketleri puanla', () => closeSheet(() => rateExercises()), 'secondary', 'w-full'),
+    ),
+  )
+}
+
 // Program (şablon) ekler/düzenler. t null ise yeni program. exerciseIds: başlangıç seçimi.
 export function editTemplate(t, exerciseIds = []) {
+  if (t?.builtin) return viewBuiltin(t)
   const isNew = !t
+  const source = t?.forkOf ? state.data.templates.find((x) => x.id === t.forkOf) : null
   const chosen = [...(t?.exerciseIds ?? exerciseIds)]
   const nameInput = input({ value: t?.name ?? '', placeholder: 'Program adı (örn. Push, Bacak günü)', maxlength: 40 })
   const order = h('div', {})
@@ -274,14 +336,82 @@ export function editTemplate(t, exerciseIds = []) {
     h(
       'div',
       { class: 'space-y-4' },
+      t?.forkOf ? h('p', { class: 'text-xs text-muted' }, `${source ? `"${source.name}"` : 'Başka bir'} programdan kopyalandı; değişikliklerin asıl programı etkilemez.`) : null,
       field('Ad', nameInput),
       field('Hareketler (sırasıyla)', order),
       button('Kaydet', save, 'primary', 'w-full'),
+      isNew ? null : button([icon('copy', 18), ' Kopyasını oluştur'], () => forkTemplate(t), 'secondary', 'flex w-full items-center justify-center gap-1'),
       isNew ? null : button('Programı sil', remove, 'danger', 'w-full'),
       h('h3', { class: 'pt-2 text-sm font-semibold text-zinc-300' }, 'Hareket seç'),
       list,
     ),
   )
+}
+
+// Hızlı puanlama: tüm hareketler kas gruplarına göre; yıldıza dokununca hemen kaydedilir.
+let rateFilter = 'all'
+export function rateExercises() {
+  const list = h('div', { class: 'space-y-4' })
+  const counter = h('p', { class: 'text-sm text-muted' })
+  const tabs = h('div', { class: 'grid grid-cols-2 gap-2' })
+  const weightOnly = () => activeExercises().filter((e) => e.kind === 'weight')
+
+  function count() {
+    const all = weightOnly()
+    counter.textContent = `${all.filter((e) => e.rating).length} / ${all.length} hareket puanlandı. Hazır programlar puanlarına göre güncellenir.`
+  }
+  async function setRating(id, rating) {
+    const e = exercise(id)
+    if (!e) return
+    e.rating = rating
+    count()
+    try {
+      await mutate('PUT', `/api/exercises/${id}`, { ...e, rating })
+    } catch {
+      // mutate hatayı gösterdi
+    }
+  }
+  function fill() {
+    tabs.replaceChildren(
+      ...[
+        ['all', 'Tümü'],
+        ['unrated', 'Puanlanmamış'],
+      ].map(([key, label]) =>
+        button(label, () => {
+          rateFilter = key
+          fill()
+        }, rateFilter === key ? 'primary' : 'outline', 'py-2 text-sm'),
+      ),
+    )
+    const shown = weightOnly().filter((e) => rateFilter === 'all' || !e.rating)
+    const groups = grouped(shown)
+    list.replaceChildren(
+      ...(groups.length
+        ? groups.map(([g, exs]) =>
+            h(
+              'div',
+              {},
+              h('h3', { class: 'mb-1 flex items-center gap-2 px-1 text-xs font-medium text-muted' }, groupDot(g), g),
+              h(
+                'div',
+                { class: 'divide-y divide-zinc-800 overflow-hidden rounded-[22px] bg-zinc-900' },
+                exs.map((e) =>
+                  h(
+                    'div',
+                    { class: 'flex items-center gap-2 py-1.5 pl-4 pr-2' },
+                    h('span', { class: 'min-w-0 flex-1' }, h('span', { class: 'block truncate text-[15px]' }, e.name), h('span', { class: 'block text-xs text-muted' }, e.muscle || '—')),
+                    stars(e.rating, (v) => setRating(e.id, v), 20),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : [h('p', { class: 'py-6 text-center text-sm text-muted' }, 'Puanlanmamış hareket kalmadı 🎉')]),
+    )
+  }
+  count()
+  fill()
+  openSheet('Hareketleri puanla', h('div', { class: 'space-y-4' }, counter, tabs, list, button('Bitti', () => closeSheet(), 'secondary', 'w-full')), render)
 }
 
 const miniBtn = (text, onclick) =>

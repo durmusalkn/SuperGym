@@ -7,6 +7,7 @@ import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -65,7 +66,11 @@ public class MainActivity extends Activity {
                 importCallback = callback;
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("*/*");
+                // Alarm resmi için yalnızca resimler; yedek için her dosya (JSON türü
+                // telefonlarda tutarlı tanınmadığından).
+                boolean image = false;
+                for (String t : params.getAcceptTypes()) if (t != null && t.startsWith("image/")) image = true;
+                intent.setType(image ? "image/*" : "*/*");
                 startActivityForResult(intent, REQUEST_IMPORT);
                 return true;
             }
@@ -88,6 +93,24 @@ public class MainActivity extends Activity {
         // Kaydedilmiş sayfa durumu geri yüklenmez: uygulama kapanıp açıldığında sunucu
         // yeni bir anahtarla başlar, eski adres artık geçersizdir.
         webView.loadUrl(url);
+        handleAlarmIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (handleAlarmIntent(intent) && webView != null) {
+            webView.evaluateJavascript("window.onAlarmStart && window.onAlarmStart()", null);
+        }
+    }
+
+    /** Alarm bildirimindeki "Antrenmana girdim": alarmı susturur, programı açtırır. */
+    private boolean handleAlarmIntent(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra(WorkoutAlarms.EXTRA_ENTERED, false)) return false;
+        intent.removeExtra(WorkoutAlarms.EXTRA_ENTERED);
+        WorkoutAlarms.entered(this);
+        return true;
     }
 
     /** Uygulama şu an ekranda mı? (Dinlenme bitince bildirim yerine sadece titreşim için.) */
@@ -138,6 +161,18 @@ public class MainActivity extends Activity {
             pendingExport = null;
             if (uri != null) webView.evaluateJavascript("window.onExportDone(" + ok + ")", null);
         }
+    }
+
+    private void openSettings(Intent intent) {
+        runOnUiThread(() -> {
+            try {
+                startActivity(intent);
+            } catch (Exception e) {
+                // Bu ekran telefonda yoksa uygulama ayarları açılır.
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getPackageName())));
+            }
+        });
     }
 
     /** Arayüzden (JavaScript) çağrılan köprü. */
@@ -207,7 +242,60 @@ public class MainActivity extends Activity {
                 return;
             }
             Reminders.schedule(MainActivity.this);
+            WorkoutAlarms.schedule(MainActivity.this);
             WidgetProvider.updateAll(MainActivity.this);
+        }
+
+        // --- Antrenman alarmı ---
+
+        @JavascriptInterface
+        public boolean setAlarmImage(String base64) {
+            return AlarmImage.save(MainActivity.this, base64);
+        }
+
+        @JavascriptInterface
+        public String alarmImage() {
+            return AlarmImage.dataUrl(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void clearAlarmImage() {
+            AlarmImage.clear(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void testAlarm() {
+            WorkoutAlarms.test(MainActivity.this);
+        }
+
+        // Alarm ekranında "Antrenmana girdim" denildiyse {templateId}, yoksa boş.
+        @JavascriptInterface
+        public String takeAlarmStart() {
+            return WorkoutAlarms.takeStart(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public boolean fullScreenAllowed() {
+            return Notifications.fullScreenAllowed(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void openFullScreenSettings() {
+            if (Build.VERSION.SDK_INT < 34) return;
+            openSettings(new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                    Uri.parse("package:" + getPackageName())));
+        }
+
+        @JavascriptInterface
+        public boolean exactAlarmsAllowed() {
+            return Alarms.exactAllowed(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void openExactAlarmSettings() {
+            if (Build.VERSION.SDK_INT < 31) return;
+            openSettings(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                    Uri.parse("package:" + getPackageName())));
         }
 
         @JavascriptInterface

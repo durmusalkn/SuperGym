@@ -16,7 +16,10 @@ type Exercise struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Group    string `json:"group"`
-	Kind     string `json:"kind"` // KindWeight veya KindCardio
+	Kind     string `json:"kind"`             // KindWeight veya KindCardio
+	Muscle   string `json:"muscle,omitempty"` // hedef kas (Muscles[Group] içinden)
+	Compound bool   `json:"compound,omitempty"`
+	Rating   int    `json:"rating,omitempty"` // 1-5 puan (0: puanlanmadı)
 	Archived bool   `json:"archived,omitempty"`
 	Note     string `json:"note,omitempty"` // form ipuçları, makine ayarı vb.
 	// Artırma önerisi için hedef tekrar aralığı ve ağırlık artışı (ağırlık hareketlerinde).
@@ -53,11 +56,25 @@ type Workout struct {
 	End   string `json:"end,omitempty"`   // son setin zamanı (RFC 3339)
 }
 
-// Template, hazır programdır (örn. "Push"): seçilince hareketleri antrenmana eklenir.
+// Template, programdır (örn. "Push"): seçilince hareketleri antrenmana eklenir.
+// Builtin doluysa uygulamanın kendi programıdır (hareketleri puanlara göre seçilir,
+// değiştirilemez); ForkOf, kopyalandığı programın ID'sidir.
 type Template struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	ExerciseIDs []string `json:"exerciseIds"`
+	Builtin     string   `json:"builtin,omitempty"`
+	ForkOf      string   `json:"forkOf,omitempty"`
+}
+
+// Alarm, haftanın bir günü için antrenmana gitme saatidir. Hazırlık bildirimi bu saatten
+// Settings.PrepMinutes önce gelir.
+type Alarm struct {
+	ID         string `json:"id"`
+	Day        int    `json:"day"`  // 0: Pazar … 6: Cumartesi
+	Time       string `json:"time"` // SS:DD
+	TemplateID string `json:"templateId,omitempty"`
+	Enabled    bool   `json:"enabled"`
 }
 
 type BodyWeight struct {
@@ -70,9 +87,13 @@ type Settings struct {
 	ShowRPE      bool   `json:"showRpe,omitempty"`    // setlerde zorluk (RPE) kutusu
 	BackupDays   int    `json:"backupDays"`           // otomatik yedek aralığı (gün), 0: kapalı
 	LastBackup   string `json:"lastBackup,omitempty"` // son otomatik yedeğin tarihi
-	ReminderDays []int  `json:"reminderDays"`         // hatırlatma günleri (0: Pazar … 6: Cumartesi)
-	ReminderTime string `json:"reminderTime"`         // hatırlatma saati, SS:DD
+	ReminderDays []int  `json:"reminderDays"`         // eski sürüm: 4. sürümde alarmlara çevrilir
+	ReminderTime string `json:"reminderTime"`         // uzun ara uyarısının saati, SS:DD
 	InactiveDays int    `json:"inactiveDays"`         // bu kadar gün gidilmezse hatırlat, 0: kapalı
+
+	Alarms        []Alarm `json:"alarms"`
+	PrepMinutes   int     `json:"prepMinutes"`   // hazırlık bildirimi gitmeden kaç dk önce, 0: kapalı
+	SnoozeMinutes int     `json:"snoozeMinutes"` // ertele düğmesinin süresi
 }
 
 // Data, verilerin tamamıdır; dışa/içe aktarılan dosya da budur.
@@ -89,7 +110,7 @@ type Data struct {
 
 const (
 	appName       = "SuperGym"
-	schemaVersion = 3
+	schemaVersion = 4
 	dateLayout    = "2006-01-02"
 
 	KindWeight = "weight"
@@ -101,39 +122,13 @@ const (
 	defaultRepMin       = 8
 	defaultRepMax       = 12
 	defaultIncrement    = 2.5
+	defaultPrepMinutes  = 60
+	defaultSnooze       = 10
+	maxAlarms           = 21
 )
 
 // Groups, kas gruplarıdır. Arayüz de aynı listeyi kullanır.
 var Groups = []string{"Göğüs", "Sırt", "Bacak", "Omuz", "Kol", "Karın", "Kardiyo", "Diğer"}
-
-// İlk açılışta hazır gelen hareketler. Kullanıcı istediğini silebilir.
-var defaultExercises = []struct{ name, group, kind string }{
-	{"Bench Press", "Göğüs", KindWeight},
-	{"Incline Bench Press", "Göğüs", KindWeight},
-	{"Dumbbell Press", "Göğüs", KindWeight},
-	{"Pec Deck", "Göğüs", KindWeight},
-	{"Lat Pulldown", "Sırt", KindWeight},
-	{"Barbell Row", "Sırt", KindWeight},
-	{"Seated Cable Row", "Sırt", KindWeight},
-	{"Deadlift", "Sırt", KindWeight},
-	{"Barfiks", "Sırt", KindWeight},
-	{"Squat", "Bacak", KindWeight},
-	{"Leg Press", "Bacak", KindWeight},
-	{"Leg Extension", "Bacak", KindWeight},
-	{"Leg Curl", "Bacak", KindWeight},
-	{"Calf Raise", "Bacak", KindWeight},
-	{"Shoulder Press", "Omuz", KindWeight},
-	{"Lateral Raise", "Omuz", KindWeight},
-	{"Face Pull", "Omuz", KindWeight},
-	{"Biceps Curl", "Kol", KindWeight},
-	{"Hammer Curl", "Kol", KindWeight},
-	{"Triceps Pushdown", "Kol", KindWeight},
-	{"Crunch", "Karın", KindWeight},
-	{"Leg Raise", "Karın", KindWeight},
-	{"Koşu Bandı", "Kardiyo", KindCardio},
-	{"Bisiklet", "Kardiyo", KindCardio},
-	{"Eliptik", "Kardiyo", KindCardio},
-}
 
 func newData() Data {
 	d := Data{
@@ -144,15 +139,17 @@ func newData() Data {
 		Templates:   []Template{},
 		BodyWeights: []BodyWeight{},
 		Settings: Settings{
-			RestSeconds:  defaultRestSeconds,
-			BackupDays:   defaultBackupDays,
-			ReminderDays: []int{},
-			ReminderTime: defaultReminderTime,
+			RestSeconds:   defaultRestSeconds,
+			BackupDays:    defaultBackupDays,
+			ReminderDays:  []int{},
+			ReminderTime:  defaultReminderTime,
+			Alarms:        []Alarm{},
+			PrepMinutes:   defaultPrepMinutes,
+			SnoozeMinutes: defaultSnooze,
 		},
 	}
-	for _, e := range defaultExercises {
-		d.Exercises = append(d.Exercises, Exercise{ID: newID(), Name: e.name, Group: e.group, Kind: e.kind})
-	}
+	addCatalog(&d)
+	normalize(&d)
 	return d
 }
 
@@ -191,8 +188,31 @@ func upgrade(in fileData) (Data, error) {
 		d.Settings.BackupDays = defaultBackupDays
 		d.Settings.ReminderTime = defaultReminderTime
 	}
+	if in.Version < 4 {
+		upgradeV4(&d)
+	}
 	normalize(&d)
 	return d, validateData(d)
+}
+
+// upgradeV4: genişletilmiş hareket listesi eklenir, hatırlatma günleri aynı saatte
+// çalan alarmlara çevrilir.
+func upgradeV4(d *Data) {
+	addCatalog(d)
+	st := &d.Settings
+	st.PrepMinutes = defaultPrepMinutes
+	st.SnoozeMinutes = defaultSnooze
+	st.Alarms = []Alarm{}
+	t := st.ReminderTime
+	if _, err := time.Parse("15:04", t); err != nil {
+		t = defaultReminderTime
+	}
+	for _, day := range st.ReminderDays {
+		if day >= 0 && day <= 6 {
+			st.Alarms = append(st.Alarms, Alarm{ID: newID(), Day: day, Time: t, Enabled: true})
+		}
+	}
+	st.ReminderDays = []int{}
 }
 
 // migrateV1, eski kayıtları hazır hareket listesinin üzerine taşır: aynı gündeki kayıtlar
@@ -263,6 +283,9 @@ func normalize(d *Data) {
 		if e.Kind == "" {
 			e.Kind = KindWeight
 		}
+		if !slices.Contains(Muscles[e.Group], e.Muscle) {
+			e.Muscle = ""
+		}
 		e.Note = strings.TrimSpace(e.Note)
 		if e.Kind == KindWeight {
 			if e.RepMin == 0 && e.RepMax == 0 {
@@ -316,6 +339,39 @@ func normalize(d *Data) {
 		d.Settings.ReminderTime = defaultReminderTime
 	}
 	sort.SliceStable(d.BodyWeights, func(i, j int) bool { return d.BodyWeights[i].Date < d.BodyWeights[j].Date })
+	syncBuiltins(d)
+	normalizeAlarms(d)
+}
+
+// normalizeAlarms, alarmlara ID verir, silinmiş programa bağlı alarmı programsız bırakır ve
+// alarmları haftanın gününe (pazartesiden başlayarak) ve saate göre sıralar.
+func normalizeAlarms(d *Data) {
+	st := &d.Settings
+	if st.Alarms == nil {
+		st.Alarms = []Alarm{}
+	}
+	if st.SnoozeMinutes == 0 {
+		st.SnoozeMinutes = defaultSnooze
+	}
+	seen := map[string]bool{}
+	for i := range st.Alarms {
+		a := &st.Alarms[i]
+		if a.ID == "" || seen[a.ID] {
+			a.ID = newID()
+		}
+		seen[a.ID] = true
+		if a.TemplateID != "" && !slices.ContainsFunc(d.Templates, func(t Template) bool { return t.ID == a.TemplateID }) {
+			a.TemplateID = ""
+		}
+	}
+	monday := func(day int) int { return (day + 6) % 7 }
+	sort.SliceStable(st.Alarms, func(i, j int) bool {
+		a, b := st.Alarms[i], st.Alarms[j]
+		if a.Day != b.Day {
+			return monday(a.Day) < monday(b.Day)
+		}
+		return a.Time < b.Time
+	})
 }
 
 // validateData, verilerin tamamını denetler. Her değişiklik ve içe aktarma diske
@@ -350,6 +406,9 @@ func validateData(d Data) error {
 		}
 		if !validNumber(e.Increment) || e.Increment < 0 || e.Increment > 50 {
 			return fmt.Errorf("%s: ağırlık artışı 0 ile 50 kg arasında olmalı", e.Name)
+		}
+		if e.Rating < 0 || e.Rating > 5 {
+			return fmt.Errorf("%s: puan 1 ile 5 arasında olmalı", e.Name)
 		}
 		ids[e.ID] = e
 		names[strings.ToLower(e.Name)] = true
@@ -427,6 +486,29 @@ func validateData(d Data) error {
 	}
 	if st.InactiveDays < 0 || st.InactiveDays > 30 {
 		return errors.New("hatırlatma için gün sayısı 0 ile 30 arasında olmalı")
+	}
+	if len(st.Alarms) > maxAlarms {
+		return fmt.Errorf("en fazla %d alarm kurulabilir", maxAlarms)
+	}
+	slotsUsed := map[string]bool{}
+	for _, a := range st.Alarms {
+		if a.Day < 0 || a.Day > 6 {
+			return errors.New("alarm günü geçersiz")
+		}
+		if _, err := time.Parse("15:04", a.Time); err != nil || len(a.Time) != 5 {
+			return errors.New("alarm saati SS:DD biçiminde olmalı")
+		}
+		key := fmt.Sprint(a.Day, a.Time)
+		if slotsUsed[key] {
+			return errors.New("aynı gün ve saatte iki alarm var")
+		}
+		slotsUsed[key] = true
+	}
+	if st.PrepMinutes < 0 || st.PrepMinutes > 240 {
+		return errors.New("hazırlık bildirimi 0 ile 240 dakika önce olabilir")
+	}
+	if st.SnoozeMinutes < 1 || st.SnoozeMinutes > 60 {
+		return errors.New("erteleme süresi 1 ile 60 dakika arasında olmalı")
 	}
 	return nil
 }

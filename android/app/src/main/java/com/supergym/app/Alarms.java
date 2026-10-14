@@ -21,6 +21,24 @@ final class Alarms {
         }
     }
 
+    /**
+     * Çalar saat alarmı: durum çubuğunda alarm simgesi görünür ve pil tasarrufu modunda
+     * bile tam zamanında çalar. İzin yoksa normal alarma düşülür.
+     */
+    static void setAlarmClock(Context ctx, long atMillis, PendingIntent pi, PendingIntent show) {
+        AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+        if (exactAllowed(ctx)) {
+            am.setAlarmClock(new AlarmManager.AlarmClockInfo(atMillis, show), pi);
+        } else {
+            setExact(ctx, atMillis, pi);
+        }
+    }
+
+    static boolean exactAllowed(Context ctx) {
+        AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+        return Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms();
+    }
+
     static void cancel(Context ctx, PendingIntent pi) {
         AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
         am.cancel(pi);

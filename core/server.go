@@ -85,6 +85,16 @@ func Handler(store *Store, token string) http.Handler {
 		return store.DeleteTemplate(r.PathValue("id"))
 	}))
 
+	api.HandleFunc("POST /api/templates/{id}/fork", noBody(func(r *http.Request) (Data, error) {
+		return store.ForkTemplate(r.PathValue("id"))
+	}))
+
+	api.HandleFunc("POST /api/reset", withBody(func(r *http.Request, v struct {
+		Scope string `json:"scope"`
+	}) (Data, error) {
+		return store.Reset(v.Scope)
+	}))
+
 	api.HandleFunc("PUT /api/bodyweights/{date}", withBody(func(r *http.Request, b BodyWeight) (Data, error) {
 		b.Date = r.PathValue("date")
 		return store.PutBodyWeight(b)

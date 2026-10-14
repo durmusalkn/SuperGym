@@ -9,43 +9,37 @@ Tasarım dili **Ritim**: antrenman bir döngü (efor, nefes, tekrar), bu yüzden
 
 ## Özellikler
 
-**Antrenman**
-- Her set ayrı kaydedilir: kilo × tekrar (kardiyoda dakika ve km).
-- Seçili hareketin setleri bir halka olarak görünür; diğer hareketler altta "yörüngede".
-- "Geçen sefer", rekor ve **artırma önerisi** (geçen sefer tüm setlerde hedef tekrarın
-  üst sınırına ulaşıldıysa "62,5 kg dene").
-- **Isınma setleri** (rekora, hacme, grafiğe sayılmaz), isteğe bağlı **zorluk (RPE)**.
-- **Süperset**, hareket sırasını değiştirme, hareket notu, antrenman notu.
-- **Programlar** (Push, Pull, Bacak…): tek dokunuşla antrenmana eklenir.
-- Antrenman süresi otomatik tutulur.
-
-**Dinlenme**
-- Set bitince tam ekran **nefes rehberi** (4 sn al, 6 sn ver) ve sıradaki set.
-- Ekran kilitliyken de bildirimde geri sayar; bitince titreşim ve ses.
-
-**Takip**
-- **Takvim:** ay halkası, hafta serisi, bu haftanın günleri.
-- **İlerleme:** büyüme halkaları (her ay bir halka), grafik (en ağır set, tahmini 1RM,
-  hacim, tekrar), geçmiş, **kas grubu dengesi çiçeği**, vücut ağırlığı.
-
-**Telefon**
-- Antrenman günü ve "N gündür gitmedin" **hatırlatmaları**.
-- **Ana ekran widget'ı:** bu hafta, seri, son antrenman.
-- **Otomatik yedek** İndirilenler/SuperGym klasörüne (uygulama silinse de kalır).
-- Eski sürümlerin verileri ve yedekleri otomatik olarak yeni yapıya çevrilir.
-
-## Belgeler
-
-| Belge | İçerik |
-| --- | --- |
-| [docs/kullanim.md](docs/kullanim.md) | Kullanım kılavuzu: kurulum, ekran ekran kullanım |
-| [docs/mimari.md](docs/mimari.md) | Katmanlar, açılış, güvenlik, veri akışı, hesaplamalar (öneri, 1RM, seri…) |
-| [docs/veri-modeli.md](docs/veri-modeli.md) | `supergym.json` alanları, kurallar, sürümler ve yükseltme |
-| [docs/api.md](docs/api.md) | Yerel HTTP API |
-| [docs/android.md](docs/android.md) | Android kabuğu: köprü, izinler, bildirim, alarm, widget, yedek |
-| [docs/tasarim.md](docs/tasarim.md) | Ritim tasarım sistemi: renkler, yazı, bileşenler |
-| [docs/gelistirme.md](docs/gelistirme.md) | Çalıştırma, test, APK, imza, kurallar, telefonda doğrulanacaklar |
-| [TODO.md](TODO.md) | Yapılacaklar |
+- **Antrenman:** günün hareketleri, her set ayrı (kg × tekrar; kardiyoda dakika ve km).
+  Yeni set kutuları son setle ya da geçen seferin değerleriyle dolu gelir.
+- **Geçen sefer ve rekor:** her harekette son yapılış ve en ağır set gösterilir; rekor kırılınca 🏆.
+- **Dinlenme sayacı:** bugünün antrenmanına set eklenince başlar, bitince titreşir (süresi Ayarlar'dan).
+- **Takvim:** gidilen günler ve çalışılan kas grupları; haftalık/aylık gün sayısı ve hafta serisi.
+- **İlerleme:** hareket başına grafik (en ağır set, tahmini 1RM, hacim, tekrar) ve geçmiş; vücut ağırlığı takibi.
+- **Hareketler:** tüm kas grupları için ~110 hareketlik hazır liste (hedef kasıyla: üst göğüs, kanat, arka bacak…)
+  + kendi hareketlerin; kullanılmış hareket silinince arşivlenir, geçmiş bozulmaz.
+- **Puan:** hareketlere 1-5 yıldız ("★ Puanla" ile hızlıca); 1 puanlı hareketler programlara seçilmez.
+- **Programlar:** hazır Push, Pull, Legs, Upper, Lower ve Full Body programlarının hareketleri puanlarına ve
+  hedef kaslara göre otomatik seçilir. Hazır programlar değiştirilemez; kopyası (fork) oluşturulup düzenlenir,
+  kopya asıl programdan bağımsızdır. Kendi programların da antrenmana tek dokunuşla eklenir.
+- **Antrenman alarmları (Plan sekmesi):** her gün için ayrı saat ve program (örn. Salı 18:00 Push, Cumartesi
+  09:00 Legs). Gitme saatinden önce o günün hareketlerini gösteren hazırlık bildirimi; gitme saatinde uygulama
+  kapalıyken de yüklediğin resim tam ekran açılır ve alarm çalar. "Antrenmana girdim" denene ya da o gün set
+  girilene kadar 5 dakikada bir tekrar çalar (en fazla 2 saat); erteleme ve "Bugün gitmiyorum" da var.
+  "Antrenmana girdim" uygulamayı o günün programıyla açar.
+- **Verileri sıfırla:** yalnızca antrenman geçmişi (hareketler, puanlar, programlar ve alarmlar kalır) ya da
+  fabrika ayarları.
+- **Isınma seti ve zorluk (RPE):** set numarasına dokununca ısınma seti olur (rekora ve grafiğe sayılmaz);
+  RPE kutusu Ayarlar'dan açılır.
+- **Artırma önerisi:** geçen sefer tüm setlerde hedef tekrarın üst sınırına ulaşıldıysa ağırlık artışı önerilir
+  (hedef aralık ve artış hareket ayarlarında).
+- **Süperset ve sıralama:** iki hareket bağlanınca dinlenme gruptaki son hareketten sonra başlar; ↑/↓ ile sıra değişir.
+- **Antrenman süresi ve hareket notu:** ilk/son setin saati otomatik tutulur; harekete kalıcı not eklenebilir.
+- **Kas grubu dengesi:** son 7/30 günde hangi gruba kaç set yapıldığı.
+- **Android:** dinlenme sayacı arka planda bildirimle sürer; uzun ara hatırlatması;
+  ana ekran widget'ı (bu hafta, seri, son antrenman); İndirilenler/SuperGym klasörüne otomatik yedek.
+- **Yedek:** dışa/içe aktarma. Eski sürümün verileri ve yedekleri otomatik olarak yeni yapıya çevrilir
+  (çevrilmeden önceki dosya `supergym.json.vN-yedek` olarak saklanır). 4. sürümde eksik hazır hareketler
+  eklenir, eski "antrenman günlerim" hatırlatmaları aynı saatte çalan alarmlara dönüşür. Alarm resmi yedeğe girmez.
 
 ## Yapı
 

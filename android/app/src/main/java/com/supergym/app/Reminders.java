@@ -9,8 +9,8 @@ import java.util.Calendar;
 import java.util.Set;
 
 /**
- * Antrenman hatırlatmaları: her gün ayarlanan saatte kontrol edilir. Seçilen günlerden
- * biriyse ya da uzun süredir antrenman yoksa (ve bugün antrenman girilmediyse) bildirim gelir.
+ * Uzun ara uyarısı: her gün ayarlanan saatte kontrol edilir; uzun süredir antrenman yoksa
+ * bildirim gelir. (Antrenman günleri için alarmlar WorkoutAlarms'tadır.)
  */
 final class Reminders {
     static final String ACTION_REMIND = "com.supergym.app.REMIND";
@@ -20,7 +20,7 @@ final class Reminders {
 
     static void schedule(Context ctx) {
         PendingIntent pi = intent(ctx);
-        if (NativeState.reminderDays(ctx).isEmpty() && NativeState.inactiveDays(ctx) == 0) {
+        if (NativeState.inactiveDays(ctx) == 0) {
             Alarms.cancel(ctx, pi);
             return;
         }
@@ -47,25 +47,13 @@ final class Reminders {
         Set<String> attended = NativeState.attended(ctx);
         if (attended.contains(todayStr)) return;
 
-        // Calendar: Pazar = 1; arayüzde Pazar = 0.
-        int dow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - 1;
         long since = NativeState.daysSinceLast(NativeState.days(attended), NativeState.epochDay(todayStr));
         int inactive = NativeState.inactiveDays(ctx);
+        if (inactive <= 0 || since < inactive) return;
 
-        String title;
-        String text;
-        if (NativeState.reminderDays(ctx).contains(String.valueOf(dow))) {
-            title = "Bugün antrenman günü 💪";
-            text = since > 0 ? "Son antrenmanın " + since + " gün önceydi. Salon seni bekliyor!" : "Salon seni bekliyor!";
-        } else if (inactive > 0 && since >= inactive) {
-            title = since + " gündür antrenman yapmadın";
-            text = "Kısa bir antrenman bile serini korur.";
-        } else {
-            return;
-        }
         Notification n = Notifications.builder(ctx, Notifications.CH_REMINDER)
-                .setContentTitle(title)
-                .setContentText(text)
+                .setContentTitle(since + " gündür antrenman yapmadın")
+                .setContentText("Kısa bir antrenman bile serini korur.")
                 .setAutoCancel(true)
                 .build();
         Notifications.post(ctx, Notifications.ID_REMINDER, n);

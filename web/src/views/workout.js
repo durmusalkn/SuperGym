@@ -119,8 +119,17 @@ export function workoutView(arg) {
   )
 }
 
+// Bugün için kurulmuş alarmın programı (varsa).
+function alarmProgram(date) {
+  if (date !== today()) return null
+  const day = parseDate(date).getDay()
+  const alarm = state.data.settings.alarms.find((a) => a.enabled && a.day === day && a.templateId)
+  return alarm ? state.data.templates.find((t) => t.id === alarm.templateId) : null
+}
+
 function emptyDay(date, w) {
-  const templates = state.data.templates
+  const templates = state.data.templates.filter((t) => t.exerciseIds.length)
+  const planned = alarmProgram(date)
   return h(
     'div',
     { class: 'flex flex-col items-center' },
@@ -140,6 +149,25 @@ function emptyDay(date, w) {
       ),
     ),
     h('p', { class: 'mt-4 text-sm text-muted' }, date === today() ? 'Bugün henüz kayıt yok.' : 'Bu gün için kayıt yok.'),
+    planned
+      ? h(
+          'button',
+          {
+            type: 'button',
+            class: 'mt-6 flex w-full items-center gap-3 rounded-[24px] bg-[#2a1f2a] px-5 py-4 text-left active:opacity-80',
+            onclick: () => applyTemplate(date, planned),
+          },
+          h('span', { class: 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-coral text-ink' }, icon('bell', 20, '#15121f')),
+          h(
+            'span',
+            { class: 'min-w-0 flex-1' },
+            h('span', { class: 'block text-xs text-muted' }, 'Bugünün programı'),
+            h('span', { class: 'block truncate text-lg font-semibold' }, planned.name),
+            h('span', { class: 'block truncate text-xs text-muted' }, planned.exerciseIds.map((id) => exercise(id)?.name).filter(Boolean).join(' · ')),
+          ),
+          icon('right', 18),
+        )
+      : null,
     templates.length
       ? h(
           'div',
@@ -474,7 +502,7 @@ function addExercise(date, exId) {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-function applyTemplate(date, t) {
+export function applyTemplate(date, t) {
   const w = workoutFor(date)
   for (const id of t.exerciseIds) {
     const ex = exercise(id)

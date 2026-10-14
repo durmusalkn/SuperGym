@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -175,9 +176,13 @@ func (s *Store) DeleteWorkout(date string) (Data, error) {
 	})
 }
 
+// errBuiltin, hazır programı değiştirme ya da silme denemesinde döner.
+var errBuiltin = errors.New("hazır program değiştirilemez; kopyasını oluşturup onu düzenleyin")
+
 func (s *Store) AddTemplate(t Template) (Data, error) {
 	return s.update(func(d *Data) error {
 		t.ID = newID()
+		t.Builtin, t.ForkOf = "", ""
 		d.Templates = append(d.Templates, t)
 		return nil
 	})
@@ -189,7 +194,11 @@ func (s *Store) UpdateTemplate(id string, t Template) (Data, error) {
 		if i < 0 {
 			return ErrNotFound
 		}
-		t.ID = id
+		old := d.Templates[i]
+		if old.Builtin != "" {
+			return errBuiltin
+		}
+		t.ID, t.Builtin, t.ForkOf = id, "", old.ForkOf
 		d.Templates[i] = t
 		return nil
 	})
@@ -197,11 +206,72 @@ func (s *Store) UpdateTemplate(id string, t Template) (Data, error) {
 
 func (s *Store) DeleteTemplate(id string) (Data, error) {
 	return s.update(func(d *Data) error {
-		n := len(d.Templates)
-		d.Templates = slices.DeleteFunc(d.Templates, func(x Template) bool { return x.ID == id })
-		if len(d.Templates) == n {
+		i := slices.IndexFunc(d.Templates, func(x Template) bool { return x.ID == id })
+		if i < 0 {
 			return ErrNotFound
 		}
+		if d.Templates[i].Builtin != "" {
+			return errBuiltin
+		}
+		d.Templates = slices.Delete(d.Templates, i, i+1)
+		return nil
+	})
+}
+
+// ForkTemplate, programın bağımsız bir kopyasını oluşturur. Kopya düzenlenebilir;
+// asıl program (hazır programlar puanlar değiştikçe yeniden seçilse de) kopyayı etkilemez.
+func (s *Store) ForkTemplate(id string) (Data, error) {
+	return s.update(func(d *Data) error {
+		i := slices.IndexFunc(d.Templates, func(x Template) bool { return x.ID == id })
+		if i < 0 {
+			return ErrNotFound
+		}
+		src := d.Templates[i]
+		taken := map[string]bool{}
+		for _, t := range d.Templates {
+			taken[t.Name] = true
+		}
+		name := src.Name + " (kopyam)"
+		for n := 2; taken[name]; n++ {
+			name = fmt.Sprintf("%s (kopyam %d)", src.Name, n)
+		}
+		d.Templates = append(d.Templates, Template{
+			ID: newID(), Name: name, ExerciseIDs: slices.Clone(src.ExerciseIDs), ForkOf: src.ID,
+		})
+		return nil
+	})
+}
+
+// Sıfırlama kapsamları.
+const (
+	ResetHistory = "history" // antrenmanlar ve vücut ağırlığı
+	ResetAll     = "all"     // her şey: ilk kurulum hali
+)
+
+// Reset, verileri siler. Silmeden önceki dosya, yanlışlıkla basılırsa geri dönülebilsin
+// diye supergym.json.sifirlama-oncesi olarak saklanır (her sıfırlamada üzerine yazılır).
+func (s *Store) Reset(scope string) (Data, error) {
+	if scope != ResetHistory && scope != ResetAll {
+		return Data{}, errors.New("bilinmeyen sıfırlama türü")
+	}
+	s.mu.Lock()
+	b, err := json.MarshalIndent(s.data, "", "  ")
+	if err == nil {
+		err = writeFileAtomic(s.path+".sifirlama-oncesi", b)
+	}
+	s.mu.Unlock()
+	if err != nil {
+		return Data{}, err
+	}
+	return s.update(func(d *Data) error {
+		if scope == ResetAll {
+			*d = newData()
+			return nil
+		}
+		d.Workouts = []Workout{}
+		d.BodyWeights = []BodyWeight{}
+		// Arşiv, silinmiş ama geçmişte kullanılmış hareketlerdir; geçmiş gidince tamamen silinir.
+		d.Exercises = slices.DeleteFunc(d.Exercises, func(e Exercise) bool { return e.Archived })
 		return nil
 	})
 }
