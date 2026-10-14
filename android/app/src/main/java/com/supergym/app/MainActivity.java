@@ -197,6 +197,19 @@ public class MainActivity extends Activity {
             return Backup.write(MainActivity.this, fileName, content);
         }
 
+        // Antrenman günleri ve hatırlatma ayarları: hatırlatmalar ve widget uygulama
+        // kapalıyken bunları kullanır.
+        @JavascriptInterface
+        public void syncState(String json) {
+            try {
+                NativeState.save(MainActivity.this, json);
+            } catch (Exception e) {
+                return;
+            }
+            Reminders.schedule(MainActivity.this);
+            WidgetProvider.updateAll(MainActivity.this);
+        }
+
         @JavascriptInterface
         public boolean notificationsAllowed() {
             return Notifications.allowed(MainActivity.this);

@@ -1,7 +1,7 @@
 // Hareketler sekmesi: hareket listesi, arşiv, programlar, ayarlar ve yedek.
-import { h, today, num, shortDate, GROUPS } from '../util.js'
+import { h, today, num, shortDate, GROUPS, WEEKDAYS_SHORT } from '../util.js'
 import { state, api, mutate, exercise, records } from '../state.js'
-import { render, show, card, button, select, sectionTitle, groupDot, android } from '../ui.js'
+import { render, show, card, button, input, select, sectionTitle, groupDot, android } from '../ui.js'
 import { editExercise, editTemplate } from '../sheets.js'
 
 export function exercisesView() {
@@ -46,6 +46,7 @@ export function exercisesView() {
       : null,
     templatesSection(),
     settingsSection(),
+    remindersSection(),
     backupSection(),
   )
 }
@@ -103,9 +104,86 @@ export async function saveSettings(change) {
   try {
     await mutate('PUT', '/api/settings', { ...state.data.settings, ...change })
     show('Kaydedildi.')
+    render()
   } catch {
     // mutate hatayı gösterdi
   }
+}
+
+// Hatırlatma ayarı değişince bildirim izni istenir (Android 13+).
+function saveReminder(change) {
+  android()?.requestNotifications?.()
+  return saveSettings(change)
+}
+
+function remindersSection() {
+  const st = state.data.settings
+  const nativeOn = !!android()?.syncState
+  // Pazartesiden başlayarak; değerler JavaScript'teki gibi (Pazar = 0).
+  const days = [1, 2, 3, 4, 5, 6, 0]
+  const allowed = android()?.notificationsAllowed ? android().notificationsAllowed() : true
+  const anyOn = st.reminderDays.length || st.inactiveDays
+  return [
+    sectionTitle('Hatırlatmalar'),
+    card(
+      {},
+      !nativeOn ? h('p', { class: 'mb-3 text-xs text-zinc-500' }, 'Yalnızca Android uygulamasında çalışır.') : null,
+      h('span', { class: 'text-sm' }, 'Antrenman günlerim'),
+      h(
+        'div',
+        { class: 'mt-2 grid grid-cols-7 gap-1' },
+        days.map((d) => {
+          const on = st.reminderDays.includes(d)
+          return h(
+            'button',
+            {
+              type: 'button',
+              disabled: !nativeOn,
+              class: `rounded-lg py-2 text-xs ${on ? 'bg-emerald-600 font-semibold text-white' : 'bg-zinc-800 text-zinc-300'}`,
+              onclick: () => saveReminder({ reminderDays: on ? st.reminderDays.filter((x) => x !== d) : [...st.reminderDays, d] }),
+            },
+            WEEKDAYS_SHORT[d],
+          )
+        }),
+      ),
+      h(
+        'div',
+        { class: 'mt-4 grid grid-cols-2 gap-3' },
+        h(
+          'div',
+          { class: 'space-y-1' },
+          h('span', { class: 'text-xs text-zinc-400' }, 'Saat'),
+          input({
+            type: 'time',
+            value: st.reminderTime,
+            disabled: !nativeOn,
+            onchange: (ev) => ev.target.value && saveReminder({ reminderTime: ev.target.value }),
+          }),
+        ),
+        h(
+          'div',
+          { class: 'space-y-1' },
+          h('span', { class: 'text-xs text-zinc-400' }, 'Uzun ara uyarısı'),
+          select(
+            { value: st.inactiveDays, disabled: !nativeOn, onchange: (ev) => saveReminder({ inactiveDays: Number(ev.target.value) }) },
+            [[0, 'Kapalı'], ...[2, 3, 4, 5, 7, 10].map((n) => [n, `${n} gün gidilmezse`])],
+          ),
+        ),
+      ),
+      h(
+        'p',
+        { class: 'mt-3 text-xs text-zinc-500' },
+        'Seçtiğin günlerde, o gün antrenman girmediysen bu saatte bildirim gelir. Uzun ara uyarısı da aynı saatte kontrol edilir.',
+      ),
+      nativeOn && anyOn && !allowed
+        ? h(
+            'button',
+            { type: 'button', class: 'mt-3 w-full rounded-xl bg-amber-500/15 px-3 py-2 text-left text-sm text-amber-200', onclick: () => android().requestNotifications() },
+            'Bildirim izni kapalı: hatırlatmalar gelmez. İzin vermek için dokun (ya da telefonun Ayarlar > Uygulamalar > SuperGym > Bildirimler).',
+          )
+        : null,
+    ),
+  ]
 }
 
 function settingsSection() {

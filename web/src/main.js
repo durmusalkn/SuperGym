@@ -1,6 +1,6 @@
 import './style.css'
 import { h, today, addDays } from './util.js'
-import { state, api, mutate, reload, setErrorHandler } from './state.js'
+import { state, api, mutate, reload, setErrorHandler, attendedDates } from './state.js'
 import { route, setRender, show, android } from './ui.js'
 import { workoutView } from './views/workout.js'
 import { calendarView } from './views/calendar.js'
@@ -17,8 +17,27 @@ const TABS = [
 const view = document.getElementById('view')
 const nav = document.getElementById('nav')
 
+// Antrenman günleri ve hatırlatma ayarları Android'e bildirilir (hatırlatmalar ve ana ekran
+// widget'ı uygulama kapalıyken bunları kullanır). Yalnızca değişince gönderilir.
+let lastSync = ''
+function syncNative() {
+  if (!android()?.syncState) return
+  const from = addDays(today(), -400)
+  const st = state.data.settings
+  const json = JSON.stringify({
+    attended: [...attendedDates()].filter((d) => d >= from).sort(),
+    reminderDays: st.reminderDays,
+    reminderTime: st.reminderTime,
+    inactiveDays: st.inactiveDays,
+  })
+  if (json === lastSync) return
+  lastSync = json
+  android().syncState(json)
+}
+
 function render() {
   if (!state.data) return
+  syncNative()
   const { tab, arg } = route()
   const current = TABS.find((t) => t.id === tab) || TABS[0]
   view.replaceChildren(current.view(arg))
