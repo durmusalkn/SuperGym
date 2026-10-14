@@ -2,7 +2,7 @@
 import { h, today, addDays, longDate, shortDate, relativeDay, isValidDate, num, parseNum, hoursMinutes, clock } from '../util.js'
 import { state, exercise, workoutFor, saveWorkout, lastBefore, records, volume, workSets, suggestion, workoutMinutes } from '../state.js'
 import { go, render, show, card, button, groupChip, empty } from '../ui.js'
-import { pickExercise, editTemplate } from '../sheets.js'
+import { pickExercise, editTemplate, editExercise } from '../sheets.js'
 import { startRest } from '../timer.js'
 
 // Kutuda gösterilecek sayı: 0 ise boş, ondalık ayırıcı virgül.
@@ -259,6 +259,13 @@ function itemCard(date, i) {
         h('button', { type: 'button', class: 'rounded-lg px-2 py-1 text-zinc-500 active:bg-zinc-800', onclick: () => removeItem(date, i) }, 'Çıkar'),
       ),
     ),
+    ex.note
+      ? h(
+          'button',
+          { type: 'button', class: 'mt-2 block w-full rounded-lg bg-amber-500/10 px-2 py-1 text-left text-sm text-amber-200', onclick: () => editExercise(ex) },
+          `📝 ${ex.note}`,
+        )
+      : null,
     h('div', { class: 'mt-2 space-y-0.5 text-sm text-zinc-300' }, info),
     it.note ? h('p', { class: 'mt-2 text-sm italic text-zinc-400' }, it.note) : null,
     h(

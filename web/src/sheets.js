@@ -70,6 +70,13 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
   // Artırma önerisi için hedef tekrar aralığı ve ağırlık artışı (yalnızca ağırlık hareketleri).
   const numBox = (value, placeholder) =>
     input({ inputmode: 'decimal', value: value ? String(value).replace('.', ',') : '', placeholder, class: 'text-center' })
+  const noteInput = h('textarea', {
+    rows: 3,
+    maxlength: 500,
+    placeholder: 'Örn. dirsekler içeride, koltuk ayarı 4',
+    class: 'w-full rounded-xl bg-zinc-800 px-3 py-2.5 text-zinc-100 outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-emerald-500',
+  })
+  noteInput.value = ex?.note ?? ''
   const repMin = numBox(ex?.repMin || 8, '8')
   const repMax = numBox(ex?.repMax || 12, '12')
   const increment = numBox(ex?.increment || 2.5, '2,5')
@@ -106,6 +113,7 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
       name: nameInput.value.trim(),
       group: groupSelect.value,
       kind: kindSelect.value,
+      note: noteInput.value.trim(),
       repMin: weight ? Math.round(parseNum(repMin.value)) : 0,
       repMax: weight ? Math.round(parseNum(repMax.value)) : 0,
       increment: weight ? parseNum(increment.value) : 0,
@@ -156,6 +164,7 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
       field('Kas grubu', groupSelect),
       field('Tür', kindSelect, usedBefore ? 'Antrenmanlarda kullanıldığı için tür değiştirilemez.' : null),
       progression,
+      field('Not (antrenmanda hareketin altında görünür)', noteInput),
       button(isNew ? 'Ekle' : 'Kaydet', save, 'primary', 'w-full'),
       !isNew && rec.sessions
         ? h(
