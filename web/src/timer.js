@@ -1,4 +1,6 @@
 // Setler arası dinlenme sayacı. Ekranın altında, menünün üstünde görünür.
+// Android'de süre ayrıca telefonun alarmına kurulur: uygulama arka plandayken ya da ekran
+// kilitliyken kalan süre bildirimde görünür, bitince telefon titrer ve ses çıkarır.
 import { h, duration } from './util.js'
 import { android } from './ui.js'
 
@@ -7,8 +9,10 @@ let total = 0
 let tick = null
 let doneTimeout = null
 let audio = null
+let askedPermission = false
 
 const bar = () => document.getElementById('timer')
+const native = () => (android()?.startRest ? android() : null)
 
 export function startRest(seconds) {
   if (!seconds) return
@@ -21,6 +25,13 @@ export function startRest(seconds) {
   }
   total = seconds
   end = Date.now() + seconds * 1000
+  if (native()) {
+    if (!askedPermission) {
+      askedPermission = true
+      native().requestNotifications()
+    }
+    native().startRest(end)
+  }
   clearTimeout(doneTimeout)
   clearInterval(tick)
   tick = setInterval(update, 250)
@@ -29,6 +40,7 @@ export function startRest(seconds) {
 }
 
 export function stopRest() {
+  native()?.cancelRest()
   clearInterval(tick)
   clearTimeout(doneTimeout)
   tick = null
@@ -39,6 +51,7 @@ export function stopRest() {
 function adjust(sec) {
   end += sec * 1000
   total = Math.max(total + sec, 1)
+  if (end > Date.now()) native()?.startRest(end)
   update()
 }
 
@@ -75,9 +88,11 @@ function finish() {
   clearInterval(tick)
   tick = null
   android()?.keepScreenOn?.(false)
-  if (android()?.vibrate) android().vibrate(600)
-  else navigator.vibrate?.([300, 100, 300])
-  beep()
+  // Android'de titreşimi alarm yapar (iki kez titremesin diye burada yapılmaz).
+  if (!native()) {
+    navigator.vibrate?.([300, 100, 300])
+    beep()
+  }
   bar().replaceChildren(
     h(
       'div',
@@ -111,7 +126,16 @@ function beep() {
 }
 
 // Uygulama arka plandan dönünce sayaç kaldığı yerden doğru süreyle devam eder
-// (süre, bitiş zamanından hesaplanır).
+// (süre, bitiş zamanından hesaplanır). Bildirimden "Bitir"e basıldıysa sayaç kapanır.
+function resume() {
+  if (!tick) return
+  if (native() && end > Date.now() && !native().restEndsAt()) {
+    stopRest()
+    return
+  }
+  update()
+}
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && tick) update()
+  if (!document.hidden) resume()
 })
+window.onAppResume = resume

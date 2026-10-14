@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bildirim simgesi: dambıl. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M1,9h2v6H1z M3,6h3v12H3z M6,11h12v2H6z M18,6h3v12h-3z M21,9h2v6h-2z" />
+</vector>

@@ -1,13 +1,12 @@
 package com.supergym.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
@@ -28,6 +27,10 @@ public class MainActivity extends Activity {
     private static final int REQUEST_IMPORT = 1;
     private static final int REQUEST_EXPORT = 2;
 
+    private static final int REQUEST_PERMISSION = 3;
+
+    private static boolean visible;
+
     private WebView webView;
     private ValueCallback<Uri[]> importCallback;
     private String pendingExport;
@@ -45,6 +48,8 @@ public class MainActivity extends Activity {
             finish();
             return;
         }
+
+        Notifications.createChannels(this);
 
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
@@ -83,6 +88,25 @@ public class MainActivity extends Activity {
         // Kaydedilmiş sayfa durumu geri yüklenmez: uygulama kapanıp açıldığında sunucu
         // yeni bir anahtarla başlar, eski adres artık geçersizdir.
         webView.loadUrl(url);
+    }
+
+    /** Uygulama şu an ekranda mı? (Dinlenme bitince bildirim yerine sadece titreşim için.) */
+    static boolean isVisible() {
+        return visible;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        visible = true;
+        // Arka plandayken sayaç bitmiş ya da bildirimden durdurulmuş olabilir.
+        if (webView != null) webView.evaluateJavascript("window.onAppResume && window.onAppResume()", null);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        visible = false;
     }
 
     @Override
@@ -131,16 +155,39 @@ public class MainActivity extends Activity {
             });
         }
 
-        // Dinlenme sayacı bitince telefonu titretir.
         @JavascriptInterface
         public void vibrate(long ms) {
-            Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
-            if (vibrator == null || !vibrator.hasVibrator()) return;
-            if (Build.VERSION.SDK_INT >= 26) {
-                vibrator.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE));
-            } else {
-                vibrator.vibrate(ms);
-            }
+            RestTimer.vibrate(MainActivity.this, ms);
+        }
+
+        // Dinlenme sayacı: bitiş zamanı (epoch ms) Android alarmına kurulur, böylece
+        // uygulama kapalıyken ya da ekran kilitliyken de bitince haber verir.
+        @JavascriptInterface
+        public void startRest(long endMillis) {
+            RestTimer.start(MainActivity.this, endMillis);
+        }
+
+        @JavascriptInterface
+        public void cancelRest() {
+            RestTimer.cancel(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public long restEndsAt() {
+            return RestTimer.endsAt(MainActivity.this);
+        }
+
+        // Android 13+ bildirim izni (dinlenme sayacı ve hatırlatmalar için).
+        @JavascriptInterface
+        public void requestNotifications() {
+            if (Build.VERSION.SDK_INT < 33 || Notifications.allowed(MainActivity.this)) return;
+            runOnUiThread(() -> requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_PERMISSION));
+        }
+
+        @JavascriptInterface
+        public boolean notificationsAllowed() {
+            return Notifications.allowed(MainActivity.this);
         }
 
         // Dinlenme sayacı çalışırken ekran kararmasın.

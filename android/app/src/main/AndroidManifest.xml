@@ -5,6 +5,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Dinlenme sayacı bitince titreşim için. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Dinlenme sayacı ve hatırlatma bildirimleri. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Sayacın, ekran kapalıyken de tam zamanında bitmesi için. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
 
     <application
         android:label="SuperGym"
@@ -15,6 +22,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -22,5 +30,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".RestAlarmReceiver"
+            android:exported="false" />
     </application>
 </manifest>
