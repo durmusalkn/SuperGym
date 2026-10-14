@@ -139,7 +139,7 @@ final class Nano {
     // ile sonuçlanır.
 
     private interface Suspend<T> {
-        Object call(Continuation<? super T> c);
+        Object call(Continuation<T> c);
     }
 
     private interface Done<T> {
