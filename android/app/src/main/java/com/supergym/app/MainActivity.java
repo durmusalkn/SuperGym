@@ -61,17 +61,9 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new Bridge(), "SuperGymAndroid");
         setContentView(webView);
 
-        if (savedInstanceState != null) {
-            webView.restoreState(savedInstanceState);
-        } else {
-            webView.loadUrl(url);
-        }
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        if (webView != null) webView.saveState(outState);
+        // Kaydedilmiş sayfa durumu geri yüklenmez: uygulama kapanıp açıldığında sunucu
+        // yeni bir anahtarla başlar, eski adres artık geçersizdir.
+        webView.loadUrl(url);
     }
 
     @Override

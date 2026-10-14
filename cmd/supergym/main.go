@@ -17,6 +17,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("SuperGym çalışıyor: %s", url)
+	log.Printf("SuperGym çalışıyor, tarayıcıda açın: %s", url)
 	select {}
 }

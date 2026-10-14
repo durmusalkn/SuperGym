@@ -17,8 +17,18 @@ Bulut yok: veriler telefondaki bir JSON dosyasında tutulur, dışa/içe aktarma
 
 ```sh
 cd web && npm install && npm run build && cd ..
-go run ./cmd/supergym   # http://127.0.0.1:8080
+go run ./cmd/supergym
 ```
+
+Program, açılması gereken adresi yazar (örn. `http://127.0.0.1:8080/?t=...`).
+Sonundaki `t` her açılışta yeniden üretilen bir anahtardır: API yalnızca bu anahtarı
+gönderen arayüze cevap verir, böylece telefondaki başka uygulamalar ya da tarayıcıda
+açık başka siteler verilere erişemez.
+
+Arayüz üzerinde çalışırken Go programı açıkken `cd web && npm run dev` çalıştırın ve
+Vite'ın adresini aynı anahtarla açın: `http://localhost:5173/?t=...`
+
+Testler: `go test ./...`
 
 ## APK (GitHub Actions)
 

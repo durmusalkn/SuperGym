@@ -3,21 +3,35 @@ import './style.css'
 const $ = (sel) => document.querySelector(sel)
 const form = $('#form')
 const list = $('#list')
-const today = () => new Date().toISOString().slice(0, 10)
+const pad = (n) => String(n).padStart(2, '0')
+// Telefonun saatine göre bugünün tarihi (toISOString UTC verdiği için gece yarısından
+// sonra bir gün geride kalıyordu).
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// Go sunucusunun her açılışta ürettiği anahtar, sayfa adresinde (?t=...) gelir.
+const token = new URLSearchParams(location.search).get('t') || ''
 
 async function api(path, options = {}) {
-  const res = await fetch(path, options)
+  const res = await fetch(path, {
+    ...options,
+    headers: { ...options.headers, 'X-SuperGym-Token': token },
+  })
   if (res.status === 204) return null
-  const body = await res.json()
+  const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.error || 'Bir hata oluştu')
   return body
 }
 
-function show(text, ok = true) {
+let messageTimer
+function show(text, ok = true, sticky = false) {
   const el = $('#message')
   el.textContent = text
   el.className = `mt-3 rounded-lg px-3 py-2 text-sm ${ok ? 'bg-emerald-900 text-emerald-100' : 'bg-red-900 text-red-100'}`
-  setTimeout(() => el.classList.add('hidden'), 3000)
+  clearTimeout(messageTimer)
+  if (!sticky) messageTimer = setTimeout(() => el.classList.add('hidden'), 3000)
 }
 
 function render(entries) {
@@ -48,8 +62,12 @@ function render(entries) {
       del.textContent = 'Sil'
       del.onclick = async () => {
         if (!confirm(`"${e.exercise}" silinsin mi?`)) return
-        await api(`/api/entries/${e.id}`, { method: 'DELETE' })
-        load()
+        try {
+          await api(`/api/entries/${e.id}`, { method: 'DELETE' })
+          await load()
+        } catch (err) {
+          show(err.message, false)
+        }
       }
       li.append(info, del)
       list.append(li)
@@ -78,7 +96,7 @@ form.onsubmit = async (ev) => {
     })
     form.reset()
     form.date.value = today()
-    load()
+    await load()
   } catch (err) {
     show(err.message, false)
   }
@@ -87,14 +105,20 @@ form.onsubmit = async (ev) => {
 // Dışa aktar: Android'de dosya kaydetme ekranını açar, tarayıcıda dosyayı indirir.
 $('#export').onclick = async () => {
   const name = `supergym-yedek-${today()}.json`
-  if (window.SuperGymAndroid) {
-    const text = await (await fetch('/api/export')).text()
-    window.SuperGymAndroid.exportFile(name, text)
-  } else {
-    const a = document.createElement('a')
-    a.href = '/api/export'
-    a.download = name
-    a.click()
+  try {
+    const data = await api('/api/export')
+    const text = JSON.stringify(data, null, 2)
+    if (window.SuperGymAndroid) {
+      window.SuperGymAndroid.exportFile(name, text)
+    } else {
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }))
+      a.download = name
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    }
+  } catch (err) {
+    show(err.message, false)
   }
 }
 
@@ -110,10 +134,16 @@ $('#import-file').onchange = async (ev) => {
   try {
     const res = await api('/api/import', { method: 'POST', body: await file.text() })
     show(`${res.imported} kayıt içe aktarıldı.`)
-    load()
+    await load()
   } catch (err) {
     show(err.message, false)
   }
 }
 
-load().catch((err) => show(err.message, false))
+async function start() {
+  const { warning } = await api('/api/status')
+  if (warning) show(warning, false, true)
+  await load()
+}
+
+start().catch((err) => show(err.message, false, true))

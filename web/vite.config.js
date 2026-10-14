@@ -10,6 +10,7 @@ export default defineConfig({
   },
   server: {
     // `npm run dev` sırasında API isteklerini Go sunucusuna yönlendir.
-    proxy: { '/api': 'http://127.0.0.1:8080' },
+    // changeOrigin: Go sunucusu yalnızca kendi adresine gelen istekleri kabul eder.
+    proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: true } },
   },
 })
