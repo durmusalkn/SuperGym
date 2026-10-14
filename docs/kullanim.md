@@ -119,9 +119,13 @@ dokununca düzenlenir, kopyalanır ya da silinir.
 
 **Antrenman alarmları:** her gün için ayrı alarm: gün, gitme saati ve o günün programı
 (örn. Salı 18:00 Push, Cumartesi 09:00 Legs). Anahtar alarmı kapatır, çöp kutusu siler.
-- **Hazırlık bildirimi:** gitme saatinden önce (Kapalı, 15 dk … 3 sa) o günün programı
-  ve hareketleri bildirim olarak gelir.
-- **Gitme saati:** alarm çalar ve fotoğrafın tam ekran açılır, uygulama kapalı olsa da.
+- **O günün hareketleri:** o güne Antrenman sekmesinde önceden hareket girdiysen alarm
+  onları gösterir; girmediysen alarmın programındakileri. Alarm satırının altında hangi
+  hareketlerin görüneceği yazar.
+- **Hazırlık bildirimi:** gitme saatinden önce (Kapalı, 15 dk … 3 sa) o günün
+  hareketleri bildirim olarak gelir.
+- **Gitme saati:** alarm çalar ve fotoğrafın tam ekran açılır, uygulama kapalı olsa da;
+  altta o günün yapılacak hareketleri listelenir.
   **Antrenmana girdim** diyene ya da o gün set girene kadar 5 dakikada bir yeniden çalar
   (en fazla 2 saat). **Ertele** sesi susturur ve seçtiğin süre (5–30 dk) sonra yeniden
   çaldırır. "Antrenmana girdim" uygulamayı o günün programı eklenmiş olarak açar.

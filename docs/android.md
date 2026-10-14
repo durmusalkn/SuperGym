@@ -19,7 +19,7 @@ WebView'de gösterir ve web'in yapamadıklarını yapar.
 | `ReminderReceiver` | Günlük uzun ara alarmı; telefon açılınca (`BOOT_COMPLETED`) ve uygulama güncellenince (`MY_PACKAGE_REPLACED`) uzun ara alarmını ve antrenman alarmlarını yeniden kurar, widget'ı yeniler. |
 | `WorkoutAlarms` | Antrenman alarmları: en yakın hazırlık/gitme olayını kurar, hazırlık bildirimi, çalan alarm, 5 dakikada bir tekrar, ertele, "Antrenmana girdim", deneme alarmı. |
 | `WorkoutAlarmReceiver` | Antrenman alarmının olayları (zamanı gelen olay, tekrar, ertele, deneme). |
-| `AlarmActivity` | Kilit ekranının (ve izin verildiyse diğer uygulamaların) üstünde açılan tam ekran alarm: ekranı kaplayan fotoğraf, "Ertele" ve "Antrenmana girdim". |
+| `AlarmActivity` | Kilit ekranının (ve izin verildiyse diğer uygulamaların) üstünde açılan tam ekran alarm: ekranı kaplayan fotoğraf, o günün yapılacak hareketleri, "Ertele" ve "Antrenmana girdim". |
 | `AlarmImage` | Alarm fotoğrafını uygulamanın klasöründe saklar (`files/alarm_image.jpg`); yedeğe girmez. |
 | `AlarmSound` | Alarm sesi: seçilen ses, ses değişince bildirim kanalını yenileme, müzik dosyasını Alarms/SuperGym'e kopyalama. |
 | `WidgetProvider` | Ana ekran widget'ı. |
@@ -70,6 +70,7 @@ okur ve o günün programını bugünün antrenmanına ekler) ve
 ```json
 {
   "attended": ["2026-10-13", "2026-10-14"],
+  "plans": { "2026-10-15": ["Squat", "Leg Press", "Calf Raise"] },
   "reminderTime": "18:00", "inactiveDays": 3,
   "prepMinutes": 60, "snoozeMinutes": 10,
   "alarms": [
@@ -79,8 +80,9 @@ okur ve o günün programını bugünün antrenmanına ekler) ve
 }
 ```
 
-`attended`: son 400 gündeki antrenman günleri. `alarms`: yalnızca açık alarmlar; program
-adı ve hareketleri de gönderilir, çünkü hazırlık bildirimi uygulama kapalıyken gelir.
+`attended`: son 400 gündeki antrenman günleri. `plans`: önümüzdeki 8 günde Antrenman
+sekmesinde önceden girilmiş hareketlerin adları. `alarms`: yalnızca açık alarmlar; program
+adı ve hareketleri de gönderilir, çünkü hazırlık bildirimi ve alarm uygulama kapalıyken gelir.
 
 ## İzinler
 
@@ -134,17 +136,19 @@ doğru süreyle devam eder.
    ve `prepMinutes` önceki hazırlık) yalnızca **en yakını** kurulur. Gitme olayı
    `setAlarmClock` ile kurulur (durum çubuğunda alarm simgesi; pil tasarrufunda da tam
    zamanında). Olay gerçekleşince bir sonraki kurulur.
-3. **Hazırlık:** bugün antrenman girilmediyse o günün programını ve hareketlerini
-   gösteren bildirim.
-4. **Gitme saati:** bugün antrenman girildiyse çalmaz. Değilse alarm bildirimi
+3. **O günün hareketleri:** o güne `plans`'ta hareket varsa onlar, yoksa alarmın
+   programındakiler (`WorkoutAlarms.exercisesFor`). Hazırlık bildirimi, alarm bildirimi
+   ve alarm ekranı bu listeyi gösterir.
+4. **Hazırlık:** bugün antrenman girilmediyse o günün hareketlerini gösteren bildirim.
+5. **Gitme saati:** bugün antrenman girildiyse çalmaz. Değilse alarm bildirimi
    (`FLAG_INSISTENT`: kaldırılana kadar ses tekrar eder, 60 sn sonra kendiliğinden kalkar)
    tam ekran `AlarmActivity` ile gösterilir. Telefon kilitliyse ya da ekran kapalıysa
    fotoğraf açılır; telefon kullanılırken Android yalnızca üstte bildirim gösterir.
    "Diğer uygulamaların üzerinde göster" izni varsa `AlarmActivity` ayrıca doğrudan açılır.
-5. **Tekrar:** 5 dakika sonra yeniden çalmak üzere kurulur. "Antrenmana girdim"e
+6. **Tekrar:** 5 dakika sonra yeniden çalmak üzere kurulur. "Antrenmana girdim"e
    basılana, o gün set girilene ya da ilk çalıştan 2 saat geçene kadar tekrarlar.
-6. **Ertele:** sesi susturur, `snoozeMinutes` sonra yeniden çalar.
-7. **Antrenmana girdim:** alarm susar ve tekrar kurulmaz; uygulama açılır, arayüz
+7. **Ertele:** sesi susturur, `snoozeMinutes` sonra yeniden çalar.
+8. **Antrenmana girdim:** alarm susar ve tekrar kurulmaz; uygulama açılır, arayüz
    `takeAlarmStart` ile o günün programını alır ve bugünün antrenmanına ekler.
 
 ### Uzun ara uyarısı

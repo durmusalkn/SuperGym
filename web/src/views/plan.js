@@ -1,6 +1,6 @@
 // Plan sekmesi: programlar, antrenman alarmları, ayarlar, yedek ve sıfırlama.
-import { h, today, shortDate, WEEKDAYS } from '../util.js'
-import { state, api, mutate, exercise } from '../state.js'
+import { h, today, addDays, shortDate, WEEKDAYS } from '../util.js'
+import { state, api, mutate, exercise, findWorkout } from '../state.js'
 import { render, show, card, button, input, select, sectionTitle, icon, android } from '../ui.js'
 import { editTemplate } from '../sheets.js'
 
@@ -111,8 +111,27 @@ function toggle(on, onchange, label) {
   )
 }
 
+// Alarmın bir sonraki çalacağı tarih.
+function nextDate(a) {
+  const now = new Date()
+  const [hh, mm] = a.time.split(':').map(Number)
+  let ahead = (a.day - now.getDay() + 7) % 7
+  if (ahead === 0 && hh * 60 + mm <= now.getHours() * 60 + now.getMinutes()) ahead = 7
+  return addDays(today(), ahead)
+}
+
+// Alarmda görünecek hareketler (Android'deki kuralla aynı): o güne Antrenman sekmesinde
+// hareket girildiyse onlar, girilmediyse alarmın programındakiler.
+function alarmExercises(a) {
+  const entered = (findWorkout(nextDate(a))?.items || []).map((it) => exercise(it.exerciseId)?.name).filter(Boolean)
+  if (entered.length) return { names: entered, entered: true }
+  const t = state.data.templates.find((x) => x.id === a.templateId)
+  return { names: t ? t.exerciseIds.map((id) => exercise(id)?.name).filter(Boolean) : [], entered: false }
+}
+
 function alarmRow(a) {
   const programs = [['', 'Program yok'], ...state.data.templates.map((t) => [t.id, t.name])]
+  const { names, entered } = alarmExercises(a)
   return h(
     'div',
     { class: `space-y-2 rounded-[22px] bg-line/40 p-3 ${a.enabled ? '' : 'opacity-60'}` },
@@ -137,6 +156,14 @@ function alarmRow(a) {
         icon('trash', 18),
       ),
     ),
+    names.length
+      ? h(
+          'p',
+          { class: 'px-1 text-xs leading-relaxed text-muted' },
+          entered ? h('span', { class: 'text-mint' }, `${shortDate(nextDate(a))} için girdiğin: `) : null,
+          names.join(' · '),
+        )
+      : null,
   )
 }
 
@@ -177,6 +204,9 @@ function nextAlarm() {
 function alarmPreview(src, onclick) {
   const a = nextAlarm()
   const program = a?.templateId ? state.data.templates.find((t) => t.id === a.templateId)?.name : ''
+  const names = a ? alarmExercises(a).names : []
+  // Telefondaki gibi: 4'ten fazla hareket iki sütun, sütun sütun numaralı.
+  const rows = names.length > 4 ? Math.ceil(names.length / 2) : names.length
   return h(
     'button',
     {
@@ -201,9 +231,23 @@ function alarmPreview(src, onclick) {
     ),
     h(
       'span',
-      { class: 'absolute inset-x-0 bottom-0 flex gap-1.5 bg-gradient-to-t from-black/60 to-transparent px-2.5 pb-3 pt-8' },
-      h('span', { class: 'flex h-8 flex-1 items-center justify-center rounded-full bg-black/40 text-[10px] font-semibold text-white' }, `Ertele ${state.data.settings.snoozeMinutes} dk`),
-      h('span', { class: 'flex h-8 flex-[1.6] items-center justify-center rounded-full bg-coral text-[10px] font-semibold text-ink' }, 'Antrenmana girdim'),
+      { class: 'absolute inset-x-0 bottom-0 block bg-gradient-to-t from-black/80 via-black/50 to-transparent px-2.5 pb-3 pt-8 text-left' },
+      names.length
+        ? [
+            h('span', { class: 'block px-1 pb-1 text-[9px] font-semibold text-white/80' }, 'Bugün yapılacaklar'),
+            h(
+              'span',
+              { class: 'grid grid-flow-col gap-x-2 px-1 pb-2.5 text-[9px] leading-snug text-white', style: `grid-template-rows:repeat(${rows},auto)` },
+              names.map((n, i) => h('span', { class: 'truncate' }, `${i + 1}. ${n}`)),
+            ),
+          ]
+        : null,
+      h(
+        'span',
+        { class: 'flex gap-1.5' },
+        h('span', { class: 'flex h-8 flex-1 items-center justify-center rounded-full bg-black/40 text-[10px] font-semibold text-white' }, `Ertele ${state.data.settings.snoozeMinutes} dk`),
+        h('span', { class: 'flex h-8 flex-[1.6] items-center justify-center rounded-full bg-coral text-[10px] font-semibold text-ink' }, 'Antrenmana girdim'),
+      ),
     ),
   )
 }
@@ -356,7 +400,7 @@ function alarmsSection() {
       h(
         'p',
         { class: 'mt-3 text-xs text-zinc-500' },
-        'Hazırlık bildirimi o günün programını ve hareketlerini gösterir. Gitme saatinde alarm çalar; "Antrenmana girdim" diyene ya da o gün set girene kadar 5 dakikada bir yeniden çalar (en fazla 2 saat).',
+        'Hazırlık bildirimi ve alarm o günün yapılacak hareketlerini gösterir: o güne Antrenman sekmesinde hareket girdiysen onları, girmediysen alarmın programını. Gitme saatinde alarm çalar; "Antrenmana girdim" diyene ya da o gün set girene kadar 5 dakikada bir yeniden çalar (en fazla 2 saat).',
       ),
       nativeOn && anyOn ? permissionWarnings() : null,
     ),

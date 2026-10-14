@@ -7,8 +7,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TimeZone;
@@ -28,16 +30,19 @@ final class NativeState {
 
     /**
      * Arayüzden gelen JSON: {attended: [...], reminderTime, inactiveDays, prepMinutes,
-     * snoozeMinutes, alarms: [{day, time, templateId, program, exercises: [...]}]}.
+     * snoozeMinutes, alarms: [{day, time, templateId, program, exercises: [...]}],
+     * plans: {"YYYY-AA-GG": [hareket adları]}}.
      */
     static void save(Context ctx, String json) throws JSONException {
         JSONObject o = new JSONObject(json);
         JSONArray alarms = o.optJSONArray("alarms");
+        JSONObject plans = o.optJSONObject("plans");
         prefs(ctx).edit()
                 .putString("attended", join(o.getJSONArray("attended")))
                 .putString("reminder_time", o.optString("reminderTime", "18:00"))
                 .putInt("inactive_days", o.optInt("inactiveDays", 0))
                 .putString("alarms", alarms != null ? alarms.toString() : "[]")
+                .putString("plans", plans != null ? plans.toString() : "{}")
                 .putInt("prep_minutes", o.optInt("prepMinutes", 0))
                 .putInt("snooze_minutes", o.optInt("snoozeMinutes", 10))
                 .remove("reminder_days")
@@ -68,6 +73,21 @@ final class NativeState {
         return prefs(ctx).getString("alarms", "[]");
     }
 
+    /**
+     * O gün antrenmana önceden girilen hareketlerin adları (Antrenman sekmesinde o güne
+     * eklenenler); girilmemişse boş liste.
+     */
+    static List<String> planFor(Context ctx, String date) {
+        List<String> out = new ArrayList<>();
+        try {
+            JSONArray a = new JSONObject(prefs(ctx).getString("plans", "{}")).optJSONArray(date);
+            for (int i = 0; a != null && i < a.length(); i++) out.add(a.getString(i));
+        } catch (JSONException ignored) {
+            // bozuk veri: plan yok sayılır
+        }
+        return out;
+    }
+
     static int prepMinutes(Context ctx) {
         return prefs(ctx).getInt("prep_minutes", 0);
     }
@@ -87,7 +107,13 @@ final class NativeState {
     // --- Tarih hesapları (YYYY-AA-GG, telefonun saatine göre) ---
 
     static String today() {
+        return date(System.currentTimeMillis());
+    }
+
+    /** Verilen anın tarihi (YYYY-AA-GG, telefonun saatine göre). */
+    static String date(long millis) {
         Calendar c = Calendar.getInstance();
+        c.setTimeInMillis(millis);
         return String.format(Locale.US, "%04d-%02d-%02d",
                 c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH));
     }

@@ -23,9 +23,12 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.util.List;
+
 /**
  * Gitme saatinde kilit ekranının (ve izin verildiyse diğer uygulamaların) üstünde açılan
- * tam ekran alarm: ekranı kaplayan fotoğraf, "Ertele" ve "Antrenmana girdim". Alarmı
+ * tam ekran alarm: ekranı kaplayan fotoğraf, o günün yapılacak hareketleri, "Ertele" ve
+ * "Antrenmana girdim". Alarmı
  * yalnızca "Antrenmana girdim" (ya da o gün set girmek) tamamen susturur.
  */
 public class AlarmActivity extends Activity {
@@ -112,13 +115,39 @@ public class AlarmActivity extends Activity {
         top.addView(text(program.isEmpty() ? "Antrenman vakti" : "Antrenman vakti · " + program, 16, TEXT, false));
         root.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
-        // Alt kenar: yan yana iki düğme.
+        // Alt kenar: o günün yapılacak hareketleri ve yan yana iki düğme.
         LinearLayout bottom = new LinearLayout(this);
-        bottom.setOrientation(LinearLayout.HORIZONTAL);
+        bottom.setOrientation(LinearLayout.VERTICAL);
         bottom.setPadding(dp(16), dp(48), dp(16), dp(24));
         bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
-                new int[]{0x9915121F, Color.TRANSPARENT}));
+                new int[]{0xD915121F, 0x9915121F, Color.TRANSPARENT}));
 
+        List<String> exercises = WorkoutAlarms.ringExercises(this);
+        if (!exercises.isEmpty()) {
+            TextView label = text("Bugün yapılacaklar", 13, 0xCCFFFFFF, true);
+            label.setPadding(dp(8), 0, dp(8), dp(6));
+            bottom.addView(label);
+            // Fotoğrafı az kapatsın diye 4'ten fazla hareket iki sütuna bölünür.
+            LinearLayout cols = new LinearLayout(this);
+            cols.setOrientation(LinearLayout.HORIZONTAL);
+            cols.setPadding(dp(8), 0, dp(8), dp(16));
+            int perCol = exercises.size() > 4 ? (exercises.size() + 1) / 2 : exercises.size();
+            for (int start = 0; start < exercises.size(); start += perCol) {
+                StringBuilder col = new StringBuilder();
+                for (int i = start; i < Math.min(start + perCol, exercises.size()); i++) {
+                    if (col.length() > 0) col.append('\n');
+                    col.append(i + 1).append(".  ").append(exercises.get(i));
+                }
+                TextView t = text(col.toString(), 15, TEXT, false);
+                t.setLineSpacing(dp(3), 1f);
+                t.setSingleLine(false);
+                cols.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
+            }
+            bottom.addView(cols);
+        }
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
         Button snooze = button("Ertele " + NativeState.snoozeMinutes(this) + " dk", 0x66000000, TEXT);
         snooze.setOnClickListener(v -> {
             WorkoutAlarms.snooze(this);
@@ -126,11 +155,12 @@ public class AlarmActivity extends Activity {
         });
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(0, dp(60), 1f);
         slp.rightMargin = dp(10);
-        bottom.addView(snooze, slp);
+        buttons.addView(snooze, slp);
 
         Button go = button("Antrenmana girdim", CORAL, INK);
         go.setOnClickListener(v -> enteredGym());
-        bottom.addView(go, new LinearLayout.LayoutParams(0, dp(60), 1.6f));
+        buttons.addView(go, new LinearLayout.LayoutParams(0, dp(60), 1.6f));
+        bottom.addView(buttons);
         root.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
         // Android 15'te ekran kenardan kenaradır: fotoğraf sistem çubuklarının altına da

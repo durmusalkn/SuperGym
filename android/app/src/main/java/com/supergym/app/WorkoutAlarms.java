@@ -66,11 +66,13 @@ final class WorkoutAlarms {
     /** Takvimdeki bir olay: hazırlık ya da gitme. */
     private static final class Event {
         final long at;
+        final long go; // hazırlıkta da gitme saati (hangi günün antrenmanı?)
         final boolean prep;
         final Entry entry;
 
-        Event(long at, boolean prep, Entry entry) {
+        Event(long at, long go, boolean prep, Entry entry) {
             this.at = at;
+            this.go = go;
             this.prep = prep;
             this.entry = entry;
         }
@@ -115,8 +117,8 @@ final class WorkoutAlarms {
                 c.set(Calendar.SECOND, 0);
                 c.set(Calendar.MILLISECOND, 0);
                 long go = c.getTimeInMillis();
-                out.add(new Event(go, false, e));
-                if (prep > 0) out.add(new Event(go - prep, true, e));
+                out.add(new Event(go, go, false, e));
+                if (prep > 0) out.add(new Event(go - prep, go, true, e));
             }
         }
         return out;
@@ -151,8 +153,9 @@ final class WorkoutAlarms {
         if (at > 0) {
             for (Event ev : events(ctx, at)) {
                 if (Math.abs(ev.at - at) > 30_000) continue;
-                if (ev.prep) prepare(ctx, ev.entry);
-                else startRinging(ctx, ev.entry, false);
+                List<String> exercises = exercisesFor(ctx, ev.entry, NativeState.date(ev.go));
+                if (ev.prep) prepare(ctx, ev.entry, exercises);
+                else startRinging(ctx, ev.entry, exercises, false);
             }
         }
         schedule(ctx);
@@ -162,16 +165,25 @@ final class WorkoutAlarms {
         return NativeState.attended(ctx).contains(NativeState.today());
     }
 
+    /**
+     * O günün yapılacak hareketleri: Antrenman sekmesinde o güne hareket girildiyse onlar,
+     * girilmediyse alarmın programındakiler.
+     */
+    private static List<String> exercisesFor(Context ctx, Entry e, String date) {
+        List<String> planned = NativeState.planFor(ctx, date);
+        return planned.isEmpty() ? e.exercises : planned;
+    }
+
     // --- Hazırlık bildirimi ---
 
-    private static void prepare(Context ctx, Entry e) {
+    private static void prepare(Context ctx, Entry e, List<String> exercises) {
         if (attendedToday(ctx)) return;
         String title = e.program.isEmpty()
                 ? "Hazırlan: antrenman " + e.time() + "'de"
                 : "Hazırlan: " + e.time() + "'de " + e.program;
-        String text = e.exercises.isEmpty()
+        String text = exercises.isEmpty()
                 ? "Çantanı hazırla, su şişeni unutma."
-                : "Bugün: " + TextUtils.join(" · ", e.exercises);
+                : "Bugün: " + TextUtils.join(" · ", exercises);
         Notification n = Notifications.builder(ctx, Notifications.CH_PREP)
                 .setContentTitle(title)
                 .setContentText(text)
@@ -199,8 +211,15 @@ final class WorkoutAlarms {
         return prefs(ctx).getString("ring_time", "");
     }
 
+    /** Çalan alarmın günündeki yapılacak hareketler. */
+    static List<String> ringExercises(Context ctx) {
+        List<String> out = new ArrayList<>();
+        for (String s : prefs(ctx).getString("ring_exercises", "").split("\n")) if (!s.isEmpty()) out.add(s);
+        return out;
+    }
+
     /** Gitme saati geldi. Bugün zaten set girildiyse (salondaysa) çalmaz. */
-    private static void startRinging(Context ctx, Entry e, boolean test) {
+    private static void startRinging(Context ctx, Entry e, List<String> exercises, boolean test) {
         if (!test && attendedToday(ctx)) return;
         Notifications.cancel(ctx, Notifications.ID_PREP);
         prefs(ctx).edit()
@@ -208,6 +227,7 @@ final class WorkoutAlarms {
                 .putString("ring_date", NativeState.today())
                 .putString("ring_template", e.templateId)
                 .putString("ring_program", e.program)
+                .putString("ring_exercises", TextUtils.join("\n", exercises))
                 .putString("ring_time", e.time())
                 .putBoolean("ring_test", test)
                 .commit();
@@ -230,8 +250,9 @@ final class WorkoutAlarms {
     /** Alarm sesi ve tam ekran resim; 5 dakika sonra yeniden çalmak üzere kurulur. */
     private static void ring(Context ctx) {
         String program = ringProgram(ctx);
-        String title = "Antrenman vakti!";
-        String text = program.isEmpty() ? "Salona gitme zamanı." : "Bugün " + program + ". Salona gitme zamanı.";
+        List<String> exercises = ringExercises(ctx);
+        String title = program.isEmpty() ? "Antrenman vakti!" : "Antrenman vakti: " + program;
+        String text = exercises.isEmpty() ? "Salona gitme zamanı." : TextUtils.join(" · ", exercises);
 
         PendingIntent full = screen(ctx);
         Intent enteredIntent = new Intent(ctx, MainActivity.class)
@@ -259,6 +280,7 @@ final class WorkoutAlarms {
         if (Build.VERSION.SDK_INT >= 26) b.setTimeoutAfter(RING_MS);
         Bitmap image = AlarmImage.load(ctx, 720);
         if (image != null) b.setStyle(new Notification.BigPictureStyle().bigPicture(image).setSummaryText(text));
+        else b.setStyle(new Notification.BigTextStyle().bigText(text));
         Notification n = b.build();
         // Bildirim kaldırılana (ya da süresi dolana) kadar ses tekrar tekrar çalar.
         n.flags |= Notification.FLAG_INSISTENT;
@@ -324,7 +346,7 @@ final class WorkoutAlarms {
     static void stop(Context ctx) {
         prefs(ctx).edit()
                 .remove("ring_since").remove("ring_date").remove("ring_template")
-                .remove("ring_program").remove("ring_time").remove("ring_test")
+                .remove("ring_program").remove("ring_exercises").remove("ring_time").remove("ring_test")
                 .commit();
         Alarms.cancel(ctx, broadcast(ctx, ACTION_RING, RC_RING));
         Notifications.cancel(ctx, Notifications.ID_ALARM);
@@ -344,10 +366,11 @@ final class WorkoutAlarms {
             if (!x.program.isEmpty()) {
                 e.program = x.program;
                 e.templateId = x.templateId;
+                e.exercises = x.exercises;
                 break;
             }
         }
-        startRinging(ctx, e, true);
+        startRinging(ctx, e, exercisesFor(ctx, e, NativeState.today()), true);
     }
 
     /** Tam ekran alarm ekranı. */

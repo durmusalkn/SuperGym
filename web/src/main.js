@@ -1,6 +1,6 @@
 import './style.css'
 import { h, svg, today, addDays } from './util.js'
-import { state, api, mutate, reload, setErrorHandler, attendedDates, exercise } from './state.js'
+import { state, api, mutate, reload, setErrorHandler, attendedDates, exercise, findWorkout } from './state.js'
 import { route, setRender, show, android, go } from './ui.js'
 import { workoutView, applyTemplate } from './views/workout.js'
 import { calendarView } from './views/calendar.js'
@@ -55,8 +55,17 @@ function syncNative() {
         exercises: t ? t.exerciseIds.map((id) => exercise(id)?.name).filter(Boolean) : [],
       }
     })
+  // Önümüzdeki 8 günde antrenmana önceden girilmiş hareketler: alarm o günün programı
+  // yerine bunları gösterir.
+  const plans = {}
+  for (let k = 0; k < 8; k++) {
+    const date = addDays(today(), k)
+    const names = (findWorkout(date)?.items || []).map((it) => exercise(it.exerciseId)?.name).filter(Boolean)
+    if (names.length) plans[date] = names
+  }
   const json = JSON.stringify({
     attended: [...attendedDates()].filter((d) => d >= from).sort(),
+    plans,
     reminderTime: st.reminderTime,
     inactiveDays: st.inactiveDays,
     alarms,
