@@ -48,10 +48,15 @@ jobs:
           durum=0
           for model in gemini-flash-lite-latest gemini-flash-latest; do
             echo "::group::$model"
-            kod=$(curl -sS -o cevap.json -w '%{http_code}' \
-              -H "x-goog-api-key: $GEMINI_API_KEY" -H 'Content-Type: application/json' \
-              -d @istek.json "$API/models/$model:generateContent")
-            echo "HTTP $kod"
+            # Yoğunlukta (503) ya da kota dolunca (429) birkaç kez bekleyip yeniden dene.
+            for deneme in 1 2 3; do
+              basla=$(date +%s%N)
+              kod=$(curl -sS -o cevap.json -w '%{http_code}' \
+                -H "x-goog-api-key: $GEMINI_API_KEY" -H 'Content-Type: application/json' \
+                -d @istek.json "$API/models/$model:generateContent")
+              echo "Deneme $deneme: HTTP $kod, $(( ($(date +%s%N) - basla) / 1000000 )) ms"
+              case "$kod" in 503|429) sleep $((deneme * 10)) ;; *) break ;; esac
+            done
             if [ "$kod" = 200 ]; then
               jq -r '.modelVersion // empty' cevap.json
               jq -r '.candidates[0].content.parts[]?.text // empty' cevap.json
