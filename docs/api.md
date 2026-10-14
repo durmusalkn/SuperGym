@@ -26,13 +26,15 @@ Go sunucusunun HTTP API'si (`core/server.go`). Yalnızca telefonun içinden
 | `PUT /api/workouts/{date}` | `{"items": […], "note": "", "start": "", "end": ""}` | O günün antrenmanını verilenle **değiştirir**. Hareketi ve notu yoksa günü siler. |
 | `DELETE /api/workouts/{date}` | — | Günü siler (`404`: o gün kayıt yok) |
 | `POST /api/templates` | `{"name": "Push", "exerciseIds": […]}` | Program ekler |
-| `PUT /api/templates/{id}` | aynı | Programı değiştirir |
-| `DELETE /api/templates/{id}` | — | Programı siler |
+| `PUT /api/templates/{id}` | aynı | Programı değiştirir (hazır programda `400`) |
+| `DELETE /api/templates/{id}` | — | Programı siler (hazır programda `400`) |
+| `POST /api/templates/{id}/fork` | — | Programın bağımsız kopyasını ekler ("Push (kopyam)", `forkOf` ile) |
+| `POST /api/reset` | `{"scope": "history"}` ya da `{"scope": "all"}` | `history`: antrenmanları ve vücut ağırlığını (ve arşivlenmiş hareketleri) siler. `all`: ilk kurulum haline döner. Silmeden önceki dosya `supergym.json.sifirlama-oncesi` olarak saklanır. |
 | `PUT /api/bodyweights/{date}` | `{"kg": 80.6}` | O günün vücut ağırlığını kaydeder (varsa değiştirir) |
 | `DELETE /api/bodyweights/{date}` | — | Kaydı siler |
 | `PUT /api/settings` | `Settings` (tamamı) | Ayarları değiştirir |
 | `GET /api/export` | — | Yedek dosyası (girintili JSON, `exportedAt` ile). `Content-Disposition: attachment; filename="supergym-yedek-YYYY-AA-GG.json"` |
-| `POST /api/import` | Yedek dosyasının içeriği | Mevcut verinin **yerine** koyar. 1., 2. ve 3. sürüm yedekleri kabul edilir ve yükseltilir. Tek bir hata varsa hiçbir şey değişmez. |
+| `POST /api/import` | Yedek dosyasının içeriği | Mevcut verinin **yerine** koyar. 1.–4. sürüm yedekleri kabul edilir ve yükseltilir. Tek bir hata varsa hiçbir şey değişmez. |
 
 `PUT` istekleri kaydın tamamını değiştirir; gönderilmeyen alanlar silinir. Bu yüzden
 arayüz bir alanı değiştirirken kaydın geri kalanını da gönderir

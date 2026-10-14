@@ -21,7 +21,7 @@ final class Notifications {
     static final String CH_TIMER_DONE = "rest_done";
     static final String CH_REMINDER = "reminders";
     static final String CH_PREP = "workout_prep";
-    static final String CH_ALARM = "workout_alarm";
+    static final String CH_ALARM = "workout_alarm"; // ses değişince sonuna sürüm eklenir
 
     static final int ID_TIMER = 1;
     static final int ID_TIMER_DONE = 2;
@@ -55,10 +55,11 @@ final class Notifications {
         prep.setDescription("Gitme saatinden önce o günün programı ve hareketleri");
 
         // Alarm sesi telefonun alarm ses düzeyiyle çalar (sessiz moddayken de duyulur).
-        NotificationChannel alarm = new NotificationChannel(CH_ALARM, "Antrenman alarmı",
+        // Kanal kimliği ses her değiştiğinde yenilenir (bkz. AlarmSound).
+        NotificationChannel alarm = new NotificationChannel(AlarmSound.channel(ctx), "Antrenman alarmı",
                 NotificationManager.IMPORTANCE_HIGH);
         alarm.setDescription("Antrenmana gitme saatinde çalan alarm");
-        alarm.setSound(alarmSound(), new AudioAttributes.Builder()
+        alarm.setSound(AlarmSound.uri(ctx), new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build());

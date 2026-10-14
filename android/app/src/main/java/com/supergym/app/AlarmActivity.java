@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Insets;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -11,8 +12,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.Gravity;
-import android.view.View;
+import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.Animation;
+import android.view.animation.ScaleAnimation;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -20,13 +24,14 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * Gitme saatinde kilit ekranının üstünde açılan tam ekran alarm: yüklenen resim,
- * "Antrenmana girdim", "Ertele" ve "Bugün gitmiyorum".
+ * Gitme saatinde kilit ekranının (ve izin verildiyse diğer uygulamaların) üstünde açılan
+ * tam ekran alarm: ekranı kaplayan fotoğraf, "Ertele" ve "Antrenmana girdim". Alarmı
+ * yalnızca "Antrenmana girdim" (ya da o gün set girmek) tamamen susturur.
  */
 public class AlarmActivity extends Activity {
     private static final int INK = 0xFF15121F;
     private static final int CORAL = 0xFFFF8A6B;
-    private static final int TEXT = 0xFFEEEAF6;
+    private static final int TEXT = 0xFFFFFFFF;
     private static final int MUTED = 0xFFA39DB8;
 
     private boolean leaving; // "girdim" sonrası kilit açma bekleniyor
@@ -72,6 +77,8 @@ public class AlarmActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(INK);
 
+        // Fotoğraf ekranın tamamını kaplar ve yavaşça yakınlaşıp uzaklaşır; yazılar ve
+        // düğmeler yalnızca üst ve alt kenarda, fotoğrafın üstünü kapatmadan durur.
         Bitmap image = AlarmImage.load(this, 1440);
         if (image != null) {
             ImageView iv = new ImageView(this);
@@ -79,58 +86,63 @@ public class AlarmActivity extends Activity {
             iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
             iv.setContentDescription("Alarm resmi");
             root.addView(iv, new FrameLayout.LayoutParams(-1, -1));
-            // Yazılar okunsun diye alttan koyulaşan gölge.
-            View shade = new View(this);
-            shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                    new int[]{Color.TRANSPARENT, 0x9915121F, 0xF215121F}));
-            root.addView(shade, new FrameLayout.LayoutParams(-1, -1));
+            ScaleAnimation zoom = new ScaleAnimation(1f, 1.08f, 1f, 1.08f,
+                    Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
+            zoom.setDuration(6000);
+            zoom.setRepeatMode(Animation.REVERSE);
+            zoom.setRepeatCount(Animation.INFINITE);
+            zoom.setInterpolator(new AccelerateDecelerateInterpolator());
+            iv.startAnimation(zoom);
         } else {
-            TextView emoji = new TextView(this);
-            emoji.setText("💪");
-            emoji.setTextSize(96);
-            emoji.setGravity(Gravity.CENTER);
-            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -1);
-            lp.bottomMargin = dp(260);
-            root.addView(emoji, lp);
+            TextView hint = text("Plan › Antrenman alarmları'ndan bir fotoğraf ekle", 15, MUTED, false);
+            hint.setGravity(Gravity.CENTER);
+            hint.setPadding(dp(32), 0, dp(32), 0);
+            root.addView(hint, new FrameLayout.LayoutParams(-1, -1));
         }
 
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(24), dp(24), dp(24), dp(40));
-        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
-        root.addView(panel, plp);
-
+        // Üst kenar: saat ve program, ince bir gölge üzerinde.
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.VERTICAL);
+        top.setPadding(dp(24), dp(20), dp(24), dp(40));
+        top.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x8015121F, Color.TRANSPARENT}));
         String time = WorkoutAlarms.ringTime(this);
         String program = WorkoutAlarms.ringProgram(this);
+        top.addView(text(time, 40, TEXT, true));
+        top.addView(text(program.isEmpty() ? "Antrenman vakti" : "Antrenman vakti · " + program, 16, TEXT, false));
+        root.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
-        TextView clock = text(time, 56, TEXT, true);
-        panel.addView(clock);
-        panel.addView(text("Antrenman vakti!", 28, TEXT, true));
-        panel.addView(text(program.isEmpty() ? "Salona gitme zamanı." : "Bugün " + program + ". Salona gitme zamanı.", 17, MUTED, false));
+        // Alt kenar: yan yana iki düğme.
+        LinearLayout bottom = new LinearLayout(this);
+        bottom.setOrientation(LinearLayout.HORIZONTAL);
+        bottom.setPadding(dp(16), dp(48), dp(16), dp(24));
+        bottom.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
+                new int[]{0x9915121F, Color.TRANSPARENT}));
 
-        Button go = button("Antrenmana girdim", CORAL, INK);
-        go.setOnClickListener(v -> enteredGym());
-        LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(-1, dp(64));
-        glp.topMargin = dp(28);
-        panel.addView(go, glp);
-
-        Button snooze = button("Ertele (" + NativeState.snoozeMinutes(this) + " dk)", 0x33EEEAF6, TEXT);
+        Button snooze = button("Ertele " + NativeState.snoozeMinutes(this) + " dk", 0x66000000, TEXT);
         snooze.setOnClickListener(v -> {
             WorkoutAlarms.snooze(this);
             finish();
         });
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, dp(56));
-        slp.topMargin = dp(12);
-        panel.addView(snooze, slp);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(0, dp(60), 1f);
+        slp.rightMargin = dp(10);
+        bottom.addView(snooze, slp);
 
-        Button skip = button("Bugün gitmiyorum", Color.TRANSPARENT, MUTED);
-        skip.setOnClickListener(v -> {
-            WorkoutAlarms.stop(this);
-            finish();
-        });
-        LinearLayout.LayoutParams klp = new LinearLayout.LayoutParams(-1, dp(48));
-        klp.topMargin = dp(4);
-        panel.addView(skip, klp);
+        Button go = button("Antrenmana girdim", CORAL, INK);
+        go.setOnClickListener(v -> enteredGym());
+        bottom.addView(go, new LinearLayout.LayoutParams(0, dp(60), 1.6f));
+        root.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+
+        // Android 15'te ekran kenardan kenaradır: fotoğraf sistem çubuklarının altına da
+        // uzanır, yazılar ve düğmeler çubuklar kadar içeride kalır.
+        if (Build.VERSION.SDK_INT >= 30) {
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                top.setPadding(dp(24), dp(20) + bars.top, dp(24), dp(40));
+                bottom.setPadding(dp(16), dp(48), dp(16), dp(24) + bars.bottom);
+                return insets;
+            });
+        }
 
         setContentView(root);
     }
@@ -141,7 +153,7 @@ public class AlarmActivity extends Activity {
         t.setTextSize(sp);
         t.setTextColor(color);
         if (bold) t.setTypeface(Typeface.DEFAULT_BOLD);
-        t.setShadowLayer(8, 0, 2, 0x99000000);
+        t.setShadowLayer(10, 0, 2, 0xB3000000);
         return t;
     }
 
@@ -154,7 +166,7 @@ public class AlarmActivity extends Activity {
         b.setTypeface(Typeface.DEFAULT_BOLD);
         GradientDrawable shape = new GradientDrawable();
         shape.setColor(bg);
-        shape.setCornerRadius(dp(32));
+        shape.setCornerRadius(dp(30));
         b.setBackground(shape);
         b.setStateListAnimator(null);
         return b;

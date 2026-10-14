@@ -158,9 +158,70 @@ async function pickImage(file) {
   }
 }
 
-function imageCard(nativeOn) {
-  if (!nativeOn || !android().alarmImage) return null
-  const src = android().alarmImage()
+// Sıradaki açık alarm (önizlemede saat ve program için).
+function nextAlarm() {
+  const alarms = state.data.settings.alarms.filter((a) => a.enabled)
+  if (!alarms.length) return null
+  const now = new Date()
+  const minutes = now.getHours() * 60 + now.getMinutes()
+  // Şu andan kaç dakika sonra çalacağı (bu haftaki saati geçtiyse gelecek hafta).
+  const key = (a) => {
+    const [hh, mm] = a.time.split(':').map(Number)
+    const diff = ((a.day - now.getDay() + 7) % 7) * 1440 + hh * 60 + mm - minutes
+    return diff > 0 ? diff : diff + 7 * 1440
+  }
+  return alarms.reduce((best, a) => (key(a) < key(best) ? a : best))
+}
+
+// Alarm ekranının önizlemesi: fotoğraf ekranı kaplar, saat ve düğmeler kenarlarda.
+function alarmPreview(src, onclick) {
+  const a = nextAlarm()
+  const program = a?.templateId ? state.data.templates.find((t) => t.id === a.templateId)?.name : ''
+  return h(
+    'button',
+    {
+      type: 'button',
+      'aria-label': src ? 'Alarm fotoğrafını değiştir' : 'Alarm fotoğrafı seç',
+      class: 'relative mx-auto block aspect-[9/16] w-[220px] overflow-hidden rounded-[28px] bg-ink ring-1 ring-line',
+      onclick,
+    },
+    src
+      ? h('img', { src, alt: '', class: 'absolute inset-0 h-full w-full object-cover' })
+      : h(
+          'span',
+          { class: 'absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted' },
+          h('span', { class: 'flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-zinc-600' }, icon('plus', 22)),
+          h('span', { class: 'text-sm' }, 'Fotoğraf seç'),
+        ),
+    h(
+      'span',
+      { class: 'absolute inset-x-0 top-0 block bg-gradient-to-b from-black/50 to-transparent px-4 pb-6 pt-3 text-left' },
+      h('span', { class: 'block text-2xl font-semibold text-white' }, a ? a.time : '18:00'),
+      h('span', { class: 'block truncate text-[11px] text-white/90' }, program ? `Antrenman vakti · ${program}` : 'Antrenman vakti'),
+    ),
+    h(
+      'span',
+      { class: 'absolute inset-x-0 bottom-0 flex gap-1.5 bg-gradient-to-t from-black/60 to-transparent px-2.5 pb-3 pt-8' },
+      h('span', { class: 'flex h-8 flex-1 items-center justify-center rounded-full bg-black/40 text-[10px] font-semibold text-white' }, `Ertele ${state.data.settings.snoozeMinutes} dk`),
+      h('span', { class: 'flex h-8 flex-[1.6] items-center justify-center rounded-full bg-coral text-[10px] font-semibold text-ink' }, 'Antrenmana girdim'),
+    ),
+  )
+}
+
+// Ayar satırı: başlık, açıklama ve sağda düğme ya da durum.
+const settingRow = (title, detail, action) =>
+  h(
+    'div',
+    { class: 'flex items-center gap-3 border-t border-line pt-4' },
+    h('div', { class: 'min-w-0 flex-1' }, h('p', { class: 'text-sm' }, title), h('p', { class: 'text-xs text-zinc-500' }, detail)),
+    action,
+  )
+
+// Alarm ekranı ve sesi (yalnızca Android uygulamasında).
+function alarmScreenSection() {
+  const a = android()
+  if (!a?.alarmImage) return null
+  const src = a.alarmImage()
   const file = h('input', {
     type: 'file',
     accept: 'image/*',
@@ -171,31 +232,71 @@ function imageCard(nativeOn) {
       if (f) pickImage(f)
     },
   })
-  return h(
-    'div',
-    { class: 'mt-4 flex items-center gap-3 border-t border-line pt-4' },
-    file,
-    src
-      ? h('img', { src, alt: 'Alarm resmi', class: 'h-24 w-[4.5rem] shrink-0 rounded-2xl object-cover' })
-      : h('div', { class: 'flex h-24 w-[4.5rem] shrink-0 items-center justify-center rounded-2xl border border-dashed border-zinc-600 text-muted' }, icon('plus', 20)),
-    h(
-      'div',
-      { class: 'min-w-0 flex-1 space-y-2' },
-      h('p', { class: 'text-sm' }, 'Alarm resmi'),
-      h('p', { class: 'text-xs text-zinc-500' }, 'Gitme saatinde, uygulama kapalı olsa da tam ekran açılır.'),
+  const overlayOn = a.overlayAllowed ? a.overlayAllowed() : true
+  return [
+    sectionTitle('Alarm ekranı ve sesi'),
+    card(
+      { class: 'space-y-4' },
+      file,
+      alarmPreview(src, () => file.click()),
       h(
         'div',
-        { class: 'flex gap-2' },
-        button(src ? 'Değiştir' : 'Resim seç', () => file.click(), 'secondary', 'py-2 text-sm'),
+        { class: 'flex justify-center gap-2' },
+        button(src ? 'Fotoğrafı değiştir' : 'Fotoğraf seç', () => file.click(), 'secondary', 'py-2 text-sm'),
         src
           ? button('Kaldır', () => {
-              android().clearAlarmImage()
+              a.clearAlarmImage()
               render()
             }, 'ghost', 'py-2 text-sm')
           : null,
       ),
+      h('p', { class: 'text-center text-xs text-zinc-500' }, 'Gitme saatinde bu fotoğraf ekranın tamamını kaplar; uygulama kapalı olsa da açılır.'),
+      a.overlayAllowed
+        ? settingRow(
+            'Telefon elindeyken de tam ekran aç',
+            overlayOn
+              ? 'Açık: telefonu kullanırken de fotoğraf öne gelir.'
+              : 'Kapalıyken telefonu kullanıyorsan fotoğraf yalnızca bildirimde görünür. Açmak için "Diğer uygulamaların üzerinde göster" iznini ver.',
+            overlayOn
+              ? h('span', { class: 'shrink-0 rounded-full bg-mint/15 px-3 py-1.5 text-xs font-medium text-mint' }, 'Açık')
+              : button('Aç', () => a.openOverlaySettings(), 'primary', 'shrink-0 py-2 text-sm'),
+          )
+        : null,
+      a.pickAlarmSound
+        ? h(
+            'div',
+            { class: 'space-y-3 border-t border-line pt-4' },
+            h(
+              'div',
+              { class: 'flex items-center gap-3' },
+              h('span', { class: 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-coral/15 text-coral' }, icon('bell', 18)),
+              h('div', { class: 'min-w-0 flex-1' }, h('p', { class: 'text-sm' }, 'Alarm sesi'), h('p', { class: 'truncate text-xs text-zinc-500' }, a.alarmSoundName())),
+            ),
+            h(
+              'div',
+              { class: 'grid grid-cols-2 gap-2' },
+              button('Ses listesi', () => a.pickAlarmSound(), 'secondary', 'py-2.5 text-sm'),
+              a.alarmSoundFileSupported?.()
+                ? button('Kendi müziğim', () => a.pickAlarmSoundFile(), 'secondary', 'py-2.5 text-sm')
+                : null,
+            ),
+            h('p', { class: 'text-xs text-zinc-500' }, 'Ses telefonun alarm ses düzeyiyle çalar. Müzik dosyası telefonun Alarms/SuperGym klasörüne kopyalanır (en fazla 20 MB).'),
+          )
+        : null,
+      a.testAlarm
+        ? h('div', { class: 'text-center' }, button('Alarmı dene (10 sn sonra çalar)', () => {
+            a.testAlarm()
+            show('10 saniye sonra çalacak. Uygulamayı kapatıp deneyebilirsin.')
+          }, 'ghost', 'py-1 text-sm'))
+        : null,
     ),
-  )
+  ]
+}
+
+// Android, ses seçimi (ya da dosya kopyalama) bitince çağırır.
+window.onAlarmSoundChanged = (ok) => {
+  show(ok ? 'Alarm sesi değişti.' : 'Ses dosyası eklenemedi. En fazla 20 MB olmalı.', ok)
+  render()
 }
 
 // İzin uyarıları: bildirim, tam ekran alarm ve tam zamanlı alarm.
@@ -257,15 +358,9 @@ function alarmsSection() {
         { class: 'mt-3 text-xs text-zinc-500' },
         'Hazırlık bildirimi o günün programını ve hareketlerini gösterir. Gitme saatinde alarm çalar; "Antrenmana girdim" diyene ya da o gün set girene kadar 5 dakikada bir yeniden çalar (en fazla 2 saat).',
       ),
-      imageCard(nativeOn),
       nativeOn && anyOn ? permissionWarnings() : null,
-      nativeOn && android().testAlarm
-        ? h('div', { class: 'mt-3 text-center' }, button('Alarmı dene (10 sn sonra çalar)', () => {
-            android().testAlarm()
-            show('10 saniye sonra çalacak. Uygulamayı kapatıp deneyebilirsin.')
-          }, 'ghost', 'py-1 text-sm'))
-        : null,
     ),
+    alarmScreenSection(),
   ]
 }
 
@@ -420,7 +515,10 @@ async function reset(scope) {
   if (scope === 'all' && !confirm('Emin misin? Bu işlem geri alınamaz.')) return
   try {
     await mutate('POST', '/api/reset', { scope })
-    if (scope === 'all') android()?.clearAlarmImage?.()
+    if (scope === 'all') {
+      android()?.clearAlarmImage?.()
+      android()?.resetAlarmSound?.()
+    }
     show(scope === 'all' ? 'Uygulama ilk kurulum haline döndü.' : 'Antrenman geçmişi silindi.')
     render()
   } catch {

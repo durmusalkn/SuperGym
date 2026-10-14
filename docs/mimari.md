@@ -97,11 +97,12 @@ update(fn):  kopya = clone(veri) → fn(kopya) → normalize(kopya) → validate
 | `util.js` | `h()`/`svg()` DOM yardımcıları, tarih ve sayı biçimleri, kas grubu renkleri |
 | `rings.js` | Ritim tasarımının halkaları (`segmentRing`, `progressRing`) |
 | `timer.js` | Dinlenme: tam ekran nefes görünümü, küçük baloncuk, Android alarmıyla eşgüdüm |
-| `sheets.js` | Paneller: hareket seçme, hareket düzenleme, program düzenleme |
+| `sheets.js` | Paneller: hareket seçme, hareket düzenleme, program düzenleme ve kopyalama, hızlı puanlama |
 | `views/workout.js` | Antrenman ekranı |
 | `views/calendar.js` | Takvim ekranı (ve hafta serisi hesabı) |
 | `views/progress.js` | İlerleme ekranı (büyüme halkaları, grafik, denge çiçeği, vücut ağırlığı) |
-| `views/exercises.js` | Hareketler ekranı (liste, programlar, ayarlar, hatırlatmalar, yedek) |
+| `views/exercises.js` | Hareketler ekranı (liste, puanlar, arşiv) |
+| `views/plan.js` | Plan ekranı (programlar, antrenman alarmları, alarm ekranı ve sesi, ayarlar, uzun ara uyarısı, yedek, sıfırlama) |
 | `style.css` | Tailwind, tema renkleri, Outfit yazı tipi, animasyonlar |
 
 **Neden çerçeve yok?** Uygulama küçük, telefonda çalışıyor ve çevrimdışı. `h(etiket,
@@ -115,7 +116,8 @@ derlenmiş arayüz yazı tipiyle birlikte yaklaşık 140 KB (JavaScript ~60 KB).
 | `#/antrenman` · `#/antrenman/2026-10-14` | Antrenman (tarih yoksa bugün) |
 | `#/takvim` · `#/takvim/2026-10` | Takvim (ay yoksa bu ay) |
 | `#/ilerleme` · `#/ilerleme/<hareket-id>` | İlerleme (hareket yoksa en son yapılan) |
-| `#/hareketler` | Hareketler, programlar, ayarlar |
+| `#/hareketler` | Hareketler |
+| `#/plan` | Programlar, alarmlar, ayarlar, yedek |
 
 Sekme değişince geçmişe adım eklenir; telefonun geri tuşu önceki sekmeye döner. Gün ve
 ay değiştirme oklarında adım eklenmez (`go(adres, true)`). Alttan açılan paneller ve tam

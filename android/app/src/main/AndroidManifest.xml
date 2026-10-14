@@ -14,6 +14,9 @@
         android:maxSdkVersion="32" />
     <!-- Antrenman alarmında resmin kilit ekranında tam ekran açılması için. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Telefon kullanılırken de alarm fotoğrafının tam ekran açılması için (kullanıcı
+         Plan sekmesinden açarsa). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Telefon yeniden başlayınca hatırlatma alarmını yeniden kurmak için. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Otomatik yedek için (yalnızca Android 9 ve öncesi; sonrasında izin gerekmez). -->

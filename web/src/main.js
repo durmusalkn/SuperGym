@@ -148,6 +148,8 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     autoBackup()
     alarmStart()
+    // Telefonun ayarlarından dönünce (izin, ses) Plan'daki durum yenilensin.
+    if (route().tab === 'plan') render()
   }
 })
 
@@ -165,7 +167,7 @@ function alarmStart() {
   const t = state.data.templates.find((x) => x.id === templateId)
   go(`#/antrenman/${today()}`)
   if (t) applyTemplate(today(), t)
-  show(t ? `İyi antrenmanlar! ${t.name} hazır 💪` : 'İyi antrenmanlar! 💪')
+  show(t ? `İyi antrenmanlar! ${t.name} hazır.` : 'İyi antrenmanlar!')
 }
 window.onAlarmStart = alarmStart
 

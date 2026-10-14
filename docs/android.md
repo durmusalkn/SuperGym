@@ -15,10 +15,15 @@ WebView'de gösterir ve web'in yapamadıklarını yapar.
 | `MainActivity` | Sunucuyu başlatır, WebView'i açar, `SuperGymAndroid` köprüsünü tanımlar; dosya kaydetme/seçme; Android 15 kenardan kenara ekranda sistem çubukları ve klavye kadar boşluk bırakır; ekranda mı bilgisini tutar (`isVisible`). |
 | `RestTimer` | Dinlenme sayacının Android tarafı: alarm, geri sayan bildirim, bitiş bildirimi, titreşim. |
 | `RestAlarmReceiver` | Dinlenme alarmı çalınca ve bildirimdeki "Bitir"e basılınca çağrılır. |
-| `Reminders` | Hatırlatma alarmını kurar; alarm çalınca bildirim gerekip gerekmediğine karar verir. |
-| `ReminderReceiver` | Günlük hatırlatma alarmı; telefon açılınca (`BOOT_COMPLETED`) ve uygulama güncellenince (`MY_PACKAGE_REPLACED`) alarmı yeniden kurar, widget'ı yeniler. |
+| `Reminders` | Uzun ara uyarısının alarmını kurar; alarm çalınca bildirim gerekip gerekmediğine karar verir. |
+| `ReminderReceiver` | Günlük uzun ara alarmı; telefon açılınca (`BOOT_COMPLETED`) ve uygulama güncellenince (`MY_PACKAGE_REPLACED`) uzun ara alarmını ve antrenman alarmlarını yeniden kurar, widget'ı yeniler. |
+| `WorkoutAlarms` | Antrenman alarmları: en yakın hazırlık/gitme olayını kurar, hazırlık bildirimi, çalan alarm, 5 dakikada bir tekrar, ertele, "Antrenmana girdim", deneme alarmı. |
+| `WorkoutAlarmReceiver` | Antrenman alarmının olayları (zamanı gelen olay, tekrar, ertele, deneme). |
+| `AlarmActivity` | Kilit ekranının (ve izin verildiyse diğer uygulamaların) üstünde açılan tam ekran alarm: ekranı kaplayan fotoğraf, "Ertele" ve "Antrenmana girdim". |
+| `AlarmImage` | Alarm fotoğrafını uygulamanın klasöründe saklar (`files/alarm_image.jpg`); yedeğe girmez. |
+| `AlarmSound` | Alarm sesi: seçilen ses, ses değişince bildirim kanalını yenileme, müzik dosyasını Alarms/SuperGym'e kopyalama. |
 | `WidgetProvider` | Ana ekran widget'ı. |
-| `NativeState` | Arayüzün gönderdiği antrenman günleri ve hatırlatma ayarları (SharedPreferences `supergym`); tarih hesapları (hafta, seri, son antrenman). |
+| `NativeState` | Arayüzün gönderdiği antrenman günleri, alarmlar ve hatırlatma ayarları (SharedPreferences `supergym`); tarih hesapları (hafta, seri, son antrenman). |
 | `Backup` | Otomatik yedeği İndirilenler/SuperGym klasörüne yazar, eskilerini siler. |
 | `Notifications` | Bildirim kanalları ve ortak bildirim ayarları. |
 | `Alarms` | Tam zamanlı alarm kurma (izin yoksa birkaç dakika gecikebilen alarma düşer). |
@@ -30,27 +35,52 @@ Arayüzden çağrılan Java metotları (`MainActivity.Bridge`). Arayüz her ça�
 
 | Metot | Ne yapar | Arayüzde kullanıldığı yer |
 | --- | --- | --- |
-| `exportFile(ad, içerik)` | "Dosyayı kaydet" ekranını açar; bitince `window.onExportDone(ok)` çağrılır | Hareketler › Yedek › Dışa aktar |
+| `exportFile(ad, içerik)` | "Dosyayı kaydet" ekranını açar; bitince `window.onExportDone(ok)` çağrılır | Plan › Yedek › Dışa aktar |
 | `autoBackup(ad, içerik) → boolean` | İndirilenler/SuperGym'e yazar. Android 9 ve öncesinde izin yoksa izin ister ve `false` döner | `main.js` `autoBackup` |
 | `startRest(bitişMs)` | Dinlenme alarmını kurar, geri sayan bildirimi gösterir (bitiş zamanı epoch ms) | `timer.js` |
 | `cancelRest()` | Alarmı ve bildirimi kaldırır | `timer.js` |
 | `restEndsAt() → long` | Sayaç sürüyorsa bitiş zamanı, durdurulmuş/bitmişse 0 (bildirimden "Bitir"e basıldı mı?) | `timer.js` `resume` |
 | `vibrate(ms)` | Titreşim | — |
 | `keepScreenOn(açık)` | Dinlenme sürerken ekran kararmasın | `timer.js` |
-| `requestNotifications()` | Android 13+ bildirim iznini ister | İlk dinlenmede, hatırlatma ayarı değişince |
-| `notificationsAllowed() → boolean` | Bildirim izni var mı | Hatırlatmalar bölümündeki uyarı |
-| `syncState(json)` | Antrenman günlerini ve hatırlatma ayarlarını kaydeder; hatırlatma alarmını yeniden kurar; widget'ı yeniler | `main.js` `syncNative` |
+| `requestNotifications()` | Android 13+ bildirim iznini ister | İlk dinlenmede, alarm ya da uzun ara ayarı değişince |
+| `notificationsAllowed() → boolean` | Bildirim izni var mı | Plan › Antrenman alarmları uyarısı |
+| `syncState(json)` | Antrenman günlerini, alarmları ve hatırlatma ayarlarını kaydeder; uzun ara alarmını ve antrenman alarmlarını yeniden kurar; widget'ı yeniler | `main.js` `syncNative` |
+| `setAlarmImage(base64) → boolean` | Alarm fotoğrafını kaydeder (arayüz 1440 px'e küçültülmüş JPEG gönderir) | Plan › Alarm ekranı ve sesi |
+| `alarmImage() → string` | Fotoğrafın data URL'si (önizleme için); yoksa boş | aynı |
+| `clearAlarmImage()` | Fotoğrafı siler | aynı; fabrika ayarlarına dönünce |
+| `alarmSoundName() → string` | Seçili alarm sesinin adı | aynı |
+| `pickAlarmSound()` | Telefonun ses listesini açar; seçince `window.onAlarmSoundChanged(true)` | aynı |
+| `alarmSoundFileSupported() → boolean` | Kendi müzik dosyası seçilebilir mi (Android 10+) | aynı |
+| `pickAlarmSoundFile()` | Ses dosyası seçtirir, Alarms/SuperGym'e kopyalar; bitince `window.onAlarmSoundChanged(ok)` | aynı |
+| `resetAlarmSound()` | Telefonun varsayılan alarm sesine döner | Fabrika ayarlarına dönünce |
+| `overlayAllowed() → boolean` / `openOverlaySettings()` | "Diğer uygulamaların üzerinde göster" izni (telefon elindeyken de fotoğraf tam ekran açılsın) | aynı |
+| `fullScreenAllowed() → boolean` / `openFullScreenSettings()` | Android 14+ tam ekran bildirim izni | Plan › Antrenman alarmları uyarısı |
+| `exactAlarmsAllowed() → boolean` / `openExactAlarmSettings()` | "Alarmlar ve hatırlatıcılar" izni | aynı |
+| `testAlarm()` | 10 saniye sonra bir kez (tekrarlamadan) çalan deneme alarmı | Plan › Alarm ekranı ve sesi |
+| `takeAlarmStart() → string` | "Antrenmana girdim" denildiyse `{"templateId": "…"}` (bir kez), yoksa boş | `main.js` `alarmStart` |
 
-Java'dan arayüze: `window.onExportDone(ok)` (dışa aktarma bitti) ve
-`window.onAppResume()` (uygulama öne geldi; sayaç yeniden kontrol edilir).
+Java'dan arayüze: `window.onExportDone(ok)` (dışa aktarma bitti),
+`window.onAppResume()` (uygulama öne geldi; sayaç yeniden kontrol edilir),
+`window.onAlarmStart()` (alarmdan "Antrenmana girdim" ile açıldı; arayüz `takeAlarmStart`'ı
+okur ve o günün programını bugünün antrenmanına ekler) ve
+`window.onAlarmSoundChanged(ok)` (alarm sesi seçildi ya da dosya kopyalandı).
 
 `syncState` gövdesi (yalnızca değiştiğinde gönderilir):
 
 ```json
-{ "attended": ["2026-10-13", "2026-10-14"], "reminderDays": [1, 3, 5], "reminderTime": "18:00", "inactiveDays": 3 }
+{
+  "attended": ["2026-10-13", "2026-10-14"],
+  "reminderTime": "18:00", "inactiveDays": 3,
+  "prepMinutes": 60, "snoozeMinutes": 10,
+  "alarms": [
+    { "day": 2, "time": "18:00", "templateId": "builtin-push", "program": "Push",
+      "exercises": ["Bench Press", "Incline Bench Press", "Shoulder Press"] }
+  ]
+}
 ```
 
-`attended`: son 400 gündeki antrenman günleri.
+`attended`: son 400 gündeki antrenman günleri. `alarms`: yalnızca açık alarmlar; program
+adı ve hareketleri de gönderilir, çünkü hazırlık bildirimi uygulama kapalıyken gelir.
 
 ## İzinler
 
@@ -61,7 +91,9 @@ Java'dan arayüze: `window.onExportDone(ok)` (dışa aktarma bitti) ve
 | `POST_NOTIFICATIONS` | Dinlenme ve hatırlatma bildirimleri | Android 13+; ilk dinlenmede istenir |
 | `USE_EXACT_ALARM` | Sayacın ekran kapalıyken de tam zamanında bitmesi | Android 13+; kurulumda verilir |
 | `SCHEDULE_EXACT_ALARM` (`maxSdkVersion 32`) | Aynısı, Android 12 için | |
-| `RECEIVE_BOOT_COMPLETED` | Telefon yeniden başlayınca hatırlatma alarmını kurmak | |
+| `RECEIVE_BOOT_COMPLETED` | Telefon yeniden başlayınca uzun ara ve antrenman alarmlarını kurmak | |
+| `USE_FULL_SCREEN_INTENT` | Alarmda fotoğrafın kilit ekranında tam ekran açılması | Android 14+'ta kullanıcı kapatabilir; Plan'da uyarı çıkar |
+| `SYSTEM_ALERT_WINDOW` | Telefon kullanılırken de alarm fotoğrafının tam ekran açılması | Kullanıcı Plan › "Telefon elindeyken de tam ekran aç"tan verir; vermezse yalnızca bildirim |
 | `WRITE_EXTERNAL_STORAGE` (`maxSdkVersion 28`) | Otomatik yedek, yalnızca Android 9 ve öncesi | Sonrasında izin gerekmez |
 
 ## Bildirim kanalları
@@ -70,7 +102,9 @@ Java'dan arayüze: `window.onExportDone(ok)` (dışa aktarma bitti) ve
 | --- | --- | --- |
 | `rest_timer` — Dinlenme sayacı | Düşük (sessiz) | Kalan süreyi geri sayan, kaydırılamayan bildirim; "Bitir" düğmesi |
 | `rest_done` — Dinlenme bitti | Yüksek | Titreşim ve ses; 60 sn sonra kendiliğinden kalkar |
-| `reminders` — Antrenman hatırlatmaları | Varsayılan | Antrenman günü ve uzun ara uyarıları |
+| `reminders` — Antrenman hatırlatmaları | Varsayılan | Uzun ara uyarısı |
+| `workout_prep` — Antrenman hazırlığı | Yüksek | Gitmeden önce o günün programı ve hareketleri |
+| `workout_alarm`, `workout_alarm_N` — Antrenman alarmı | Yüksek | Alarm sesi (telefonun alarm ses düzeyiyle), titreşim, tam ekran fotoğraf. Ses değişince eski kanal silinir, sürüm numarası artan yeni kanal açılır (Android 8+'da kanalın sesi sonradan değiştirilemez). |
 
 Kullanıcı kanalları telefonun Ayarlar › Uygulamalar › SuperGym › Bildirimler
 bölümünden ayrı ayrı kapatabilir.
@@ -92,15 +126,35 @@ bölümünden ayrı ayrı kapatabilir.
 Arayüzdeki sayaç süreyi bitiş zamanından hesaplar; uygulama arka plandan dönünce
 doğru süreyle devam eder.
 
-### Hatırlatmalar
+### Antrenman alarmları
+
+1. Arayüz `syncState` ile açık alarmları (gün, saat, program ve hareketleri),
+   `prepMinutes` ve `snoozeMinutes`'ı gönderir.
+2. `WorkoutAlarms.schedule`: önümüzdeki 8 gündeki olaylardan (her alarm için gitme saati
+   ve `prepMinutes` önceki hazırlık) yalnızca **en yakını** kurulur. Gitme olayı
+   `setAlarmClock` ile kurulur (durum çubuğunda alarm simgesi; pil tasarrufunda da tam
+   zamanında). Olay gerçekleşince bir sonraki kurulur.
+3. **Hazırlık:** bugün antrenman girilmediyse o günün programını ve hareketlerini
+   gösteren bildirim.
+4. **Gitme saati:** bugün antrenman girildiyse çalmaz. Değilse alarm bildirimi
+   (`FLAG_INSISTENT`: kaldırılana kadar ses tekrar eder, 60 sn sonra kendiliğinden kalkar)
+   tam ekran `AlarmActivity` ile gösterilir. Telefon kilitliyse ya da ekran kapalıysa
+   fotoğraf açılır; telefon kullanılırken Android yalnızca üstte bildirim gösterir.
+   "Diğer uygulamaların üzerinde göster" izni varsa `AlarmActivity` ayrıca doğrudan açılır.
+5. **Tekrar:** 5 dakika sonra yeniden çalmak üzere kurulur. "Antrenmana girdim"e
+   basılana, o gün set girilene ya da ilk çalıştan 2 saat geçene kadar tekrarlar.
+6. **Ertele:** sesi susturur, `snoozeMinutes` sonra yeniden çalar.
+7. **Antrenmana girdim:** alarm susar ve tekrar kurulmaz; uygulama açılır, arayüz
+   `takeAlarmStart` ile o günün programını alır ve bugünün antrenmanına ekler.
+
+### Uzun ara uyarısı
 
 1. Arayüz `syncState` ile antrenman günlerini ve ayarları gönderir.
-2. `Reminders.schedule`: gün seçilmemiş ve uzun ara uyarısı kapalıysa alarm kaldırılır;
-   değilse bir sonraki `reminderTime`'a alarm kurulur.
-3. Alarm çalınca (`Reminders.check`): bugün antrenman girildiyse bildirim yok. Bugün
-   seçili günlerdense "Bugün antrenman günü"; değilse ve son antrenmandan bu yana
-   `inactiveDays` gün geçtiyse "N gündür antrenman yapmadın". Sonra ertesi güne
-   yeniden kurulur.
+2. `Reminders.schedule`: uzun ara uyarısı kapalıysa alarm kaldırılır; değilse bir
+   sonraki `reminderTime`'a alarm kurulur.
+3. Alarm çalınca (`Reminders.check`): bugün antrenman girildiyse bildirim yok. Son
+   antrenmandan bu yana `inactiveDays` gün geçtiyse "N gündür antrenman yapmadın".
+   Sonra ertesi güne yeniden kurulur.
 
 ### Widget
 
@@ -120,7 +174,7 @@ hatırlatma alarmında yenilenir. Dokununca uygulama açılır.
    oluşturduğu `supergym-otomatik-*` dosyaları).
 5. Başarılıysa `settings.lastBackup` bugün olur. Başarısızsa bir sonraki açılışta denenir.
 
-Bu klasör uygulama silinse de kalır; geri yüklemek için Hareketler › Yedek › İçe aktar.
+Bu klasör uygulama silinse de kalır; geri yüklemek için Plan › Yedek › İçe aktar.
 
 ## Ekran
 
