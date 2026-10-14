@@ -91,6 +91,15 @@ derlemesinde denetlenir.
 
 `versionCode` = çalıştırma numarası, `versionName` = `0.1.<numara>`.
 
+### Gemini API denemesi
+
+`.github/workflows/gemini-test.yml` yapay zekâ antrenörü için Gemini API'nin ücretsiz
+katmanını dener: kullanılabilir modelleri listeler ve örnek bir antrenman özetiyle
+`gemini-flash-lite-latest` ile `gemini-flash-latest`'e soru sorar. Yalnızca dosyanın
+kendisi değişince ya da Actions'tan elle çalışır. Anahtar Secret'taki
+`GEMINI_API_KEY`'dir; depo herkese açık olduğundan anahtar APK'ya ya da depoya
+**yazılmaz**.
+
 ### Kalıcı imza anahtarı
 
 Secret yoksa her derleme geçici bir debug anahtarıyla imzalanır ve yeni APK eskisinin

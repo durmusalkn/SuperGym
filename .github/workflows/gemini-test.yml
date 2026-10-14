@@ -1,0 +1,65 @@
+name: Gemini API denemesi
+
+# Yapay zekâ antrenörü için Gemini API'nin ücretsiz katmanını dener.
+# Anahtar GitHub Secrets'taki GEMINI_API_KEY'dir; APK'ya ya da depoya girmez.
+# Yalnızca bu dosya değişince ya da elle (Actions > Run workflow) çalışır.
+
+on:
+  push:
+    paths:
+      - .github/workflows/gemini-test.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dene:
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      API: https://generativelanguage.googleapis.com/v1beta
+    steps:
+      - name: Anahtar tanımlı mı
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::GEMINI_API_KEY secret'ı bulunamadı"
+            exit 1
+          fi
+
+      - name: Kullanılabilir modeller
+        run: |
+          curl -sS -H "x-goog-api-key: $GEMINI_API_KEY" "$API/models?pageSize=200" > modeller.json
+          if jq -e '.error' modeller.json > /dev/null; then
+            jq '.error' modeller.json
+            exit 1
+          fi
+          jq -r '.models[] | select(.supportedGenerationMethods | index("generateContent")) | .name' modeller.json
+
+      - name: Antrenör sorusu
+        run: |
+          cat > istek.json <<'EOF'
+          {
+            "systemInstruction": {"parts": [{"text": "Sen SuperGym uygulamasındaki kişisel antrenörsün. Kısa, net ve Türkçe cevap ver. Emoji kullanma. Sağlık riski görürsen doktora yönlendir."}]},
+            "contents": [{"role": "user", "parts": [{"text": "Son iki haftalık antrenmanlarım:\n- 1 Ekim: Göğüs/omuz. Bench press 4x8 60 kg, omuz press 3x10 20 kg (dambıl), şınav 3x15\n- 3 Ekim: Sırt. Barfiks 4x6, barbell row 4x8 50 kg, lat pulldown 3x12 45 kg\n- 6 Ekim: Bacak. Squat 4x8 70 kg, leg press 3x12 120 kg, calf raise 4x15\n- 8 Ekim: Göğüs/omuz. Bench press 4x8 62,5 kg, omuz press 3x10 20 kg, şınav 3x15\n- 13 Ekim: Sırt. Barfiks 4x7, barbell row 4x8 52,5 kg, lat pulldown 3x12 45 kg\nHedefim kas kazanmak. Haftada 3 gün gidebiliyorum. Gidişatım nasıl, bu hafta neye dikkat etmeliyim?"}]}],
+            "generationConfig": {"temperature": 0.7, "maxOutputTokens": 1024}
+          }
+          EOF
+          durum=0
+          for model in gemini-flash-lite-latest gemini-flash-latest; do
+            echo "::group::$model"
+            kod=$(curl -sS -o cevap.json -w '%{http_code}' \
+              -H "x-goog-api-key: $GEMINI_API_KEY" -H 'Content-Type: application/json' \
+              -d @istek.json "$API/models/$model:generateContent")
+            echo "HTTP $kod"
+            if [ "$kod" = 200 ]; then
+              jq -r '.modelVersion // empty' cevap.json
+              jq -r '.candidates[0].content.parts[]?.text // empty' cevap.json
+              jq -c '.usageMetadata' cevap.json
+            else
+              jq '.error // .' cevap.json
+              durum=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $durum
