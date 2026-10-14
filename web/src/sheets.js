@@ -28,10 +28,10 @@ export function pickExercise(onPick, added = new Set()) {
         h(
           'div',
           {},
-          h('h3', { class: 'mb-1 flex items-center gap-2 px-1 text-xs font-semibold uppercase text-zinc-400' }, groupDot(g), g),
+          h('h3', { class: 'mb-1 flex items-center gap-2 px-1 text-xs font-medium text-muted' }, groupDot(g), g),
           h(
             'div',
-            { class: 'divide-y divide-zinc-800 overflow-hidden rounded-xl bg-zinc-900' },
+            { class: 'divide-y divide-zinc-800 overflow-hidden rounded-[22px] bg-zinc-900' },
             exs.map((e) =>
               h(
                 'button',
@@ -41,7 +41,7 @@ export function pickExercise(onPick, added = new Set()) {
                   onclick: () => closeSheet(() => onPick(e)),
                 },
                 h('span', {}, e.name),
-                added.has(e.id) ? h('span', { class: 'text-xs text-emerald-400' }, '✓ ekli') : null,
+                added.has(e.id) ? h('span', { class: 'text-xs text-coral' }, 'ekli') : null,
               ),
             ),
           ),
@@ -49,7 +49,7 @@ export function pickExercise(onPick, added = new Set()) {
       ),
       h(
         'div',
-        { class: 'rounded-xl border border-dashed border-zinc-700 p-3 text-center' },
+        { class: 'rounded-[22px] border border-dashed border-zinc-700 p-3 text-center' },
         h('p', { class: 'mb-2 text-sm text-zinc-400' }, matches.length ? 'Aradığın yok mu?' : 'Bu adla bir hareket yok.'),
         button('+ Yeni hareket oluştur', () => editExercise(null, { name: search.value.trim(), onCreated: onPick }), 'secondary'),
       ),
@@ -74,7 +74,7 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
     rows: 3,
     maxlength: 500,
     placeholder: 'Örn. dirsekler içeride, koltuk ayarı 4',
-    class: 'w-full rounded-xl bg-zinc-800 px-3 py-2.5 text-zinc-100 outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-emerald-500',
+    class: 'w-full rounded-[22px] bg-zinc-800 px-3 py-2.5 text-zinc-100 outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-coral',
   })
   noteInput.value = ex?.note ?? ''
   const repMin = numBox(ex?.repMin || 8, '8')
@@ -169,7 +169,7 @@ export function editExercise(ex, { name = '', onCreated } = {}) {
       !isNew && rec.sessions
         ? h(
             'div',
-            { class: 'rounded-xl bg-zinc-900 p-3 text-sm text-zinc-300' },
+            { class: 'rounded-[22px] bg-zinc-900 p-3 text-sm text-zinc-300' },
             `${rec.sessions} antrenmanda yapıldı`,
             ex.kind === 'weight' && rec.weight ? ` · rekor ${num(rec.weight)} kg` : '',
             ex.kind === 'cardio' && rec.km ? ` · en uzun ${num(rec.km)} km` : '',
@@ -200,7 +200,7 @@ export function editTemplate(t, exerciseIds = []) {
               const e = state.data.exercises.find((x) => x.id === id)
               return h(
                 'li',
-                { class: 'flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-sm' },
+                { class: 'flex items-center gap-2 rounded-full bg-zinc-900 px-4 py-2 text-sm' },
                 h('span', { class: 'w-5 text-zinc-500' }, `${i + 1}.`),
                 h('span', { class: 'flex-1' }, e?.name ?? '?'),
                 i > 0 ? miniBtn('↑', () => move(i, -1)) : null,
@@ -215,15 +215,15 @@ export function editTemplate(t, exerciseIds = []) {
         h(
           'div',
           {},
-          h('h3', { class: 'mb-1 flex items-center gap-2 px-1 text-xs font-semibold uppercase text-zinc-400' }, groupDot(g), g),
+          h('h3', { class: 'mb-1 flex items-center gap-2 px-1 text-xs font-medium text-muted' }, groupDot(g), g),
           h(
             'div',
-            { class: 'divide-y divide-zinc-800 overflow-hidden rounded-xl bg-zinc-900' },
+            { class: 'divide-y divide-zinc-800 overflow-hidden rounded-[22px] bg-zinc-900' },
             exs.map((e) =>
               h(
                 'label',
                 { class: 'flex items-center gap-3 px-4 py-3 active:bg-zinc-800' },
-                h('input', { type: 'checkbox', class: 'h-5 w-5 accent-emerald-500', checked: chosen.includes(e.id), onchange: () => toggle(e.id) }),
+                h('input', { type: 'checkbox', class: 'h-5 w-5 accent-[#ff8a6b]', checked: chosen.includes(e.id), onchange: () => toggle(e.id) }),
                 e.name,
               ),
             ),
@@ -285,7 +285,7 @@ export function editTemplate(t, exerciseIds = []) {
 }
 
 const miniBtn = (text, onclick) =>
-  h('button', { type: 'button', class: 'rounded-md bg-zinc-800 px-2 py-0.5 text-zinc-300 active:bg-zinc-700', onclick }, text)
+  h('button', { type: 'button', class: 'rounded-full bg-zinc-800 px-2.5 py-1 text-zinc-300 active:bg-zinc-700', onclick }, text)
 
 const field = (label, control, hint) =>
   h('div', { class: 'space-y-1' }, h('span', { class: 'text-xs text-zinc-400' }, label), control, hint ? h('p', { class: 'text-xs text-zinc-500' }, hint) : null)

@@ -104,15 +104,15 @@ export const duration = (sec) => `${Math.floor(sec / 60)}:${pad(Math.max(0, sec 
 
 export const GROUPS = ['Göğüs', 'Sırt', 'Bacak', 'Omuz', 'Kol', 'Karın', 'Kardiyo', 'Diğer']
 
-// Tailwind sınıfları tam yazılmalı (derleyici kaynak koddaki sınıf adlarını arar).
+// Kas grubu renkleri (Ritim paleti).
 export const GROUP_COLORS = {
-  Göğüs: { dot: 'bg-rose-500', chip: 'bg-rose-500/15 text-rose-300', hex: '#f43f5e' },
-  Sırt: { dot: 'bg-sky-500', chip: 'bg-sky-500/15 text-sky-300', hex: '#0ea5e9' },
-  Bacak: { dot: 'bg-amber-500', chip: 'bg-amber-500/15 text-amber-300', hex: '#f59e0b' },
-  Omuz: { dot: 'bg-violet-500', chip: 'bg-violet-500/15 text-violet-300', hex: '#8b5cf6' },
-  Kol: { dot: 'bg-pink-400', chip: 'bg-pink-400/15 text-pink-300', hex: '#f472b6' },
-  Karın: { dot: 'bg-teal-400', chip: 'bg-teal-400/15 text-teal-300', hex: '#2dd4bf' },
-  Kardiyo: { dot: 'bg-lime-400', chip: 'bg-lime-400/15 text-lime-300', hex: '#a3e635' },
-  Diğer: { dot: 'bg-zinc-400', chip: 'bg-zinc-400/15 text-zinc-300', hex: '#a1a1aa' },
+  Göğüs: { hex: '#ff8a6b' },
+  Sırt: { hex: '#b79cff' },
+  Bacak: { hex: '#ffc15e' },
+  Omuz: { hex: '#74e3c8' },
+  Kol: { hex: '#f59bc2' },
+  Karın: { hex: '#8fb8ff' },
+  Kardiyo: { hex: '#c9e87a' },
+  Diğer: { hex: '#a39db8' },
 }
 export const groupColor = (g) => GROUP_COLORS[g] || GROUP_COLORS.Diğer

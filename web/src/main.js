@@ -1,5 +1,5 @@
 import './style.css'
-import { h, today, addDays } from './util.js'
+import { h, svg, today, addDays } from './util.js'
 import { state, api, mutate, reload, setErrorHandler, attendedDates } from './state.js'
 import { route, setRender, show, android } from './ui.js'
 import { workoutView } from './views/workout.js'
@@ -8,11 +8,22 @@ import { progressView } from './views/progress.js'
 import { exercisesView, importData } from './views/exercises.js'
 
 const TABS = [
-  { id: 'antrenman', label: 'Antrenman', icon: '🏋️', view: workoutView },
-  { id: 'takvim', label: 'Takvim', icon: '📅', view: calendarView },
-  { id: 'ilerleme', label: 'İlerleme', icon: '📈', view: progressView },
-  { id: 'hareketler', label: 'Hareketler', icon: '📋', view: exercisesView },
+  { id: 'antrenman', label: 'Antrenman', view: workoutView, icon: [['circle', 12, 12, 8], ['circle', 12, 12, 3]] },
+  { id: 'takvim', label: 'Takvim', view: calendarView, icon: [['circle', 12, 12, 8, '3 3'], ['dot', 12, 4, 1.6]] },
+  { id: 'ilerleme', label: 'İlerleme', view: progressView, icon: [['circle', 12, 12, 9], ['circle', 12, 12, 5.5], ['circle', 12, 12, 2]] },
+  { id: 'hareketler', label: 'Hareketler', view: exercisesView, icon: [['circle', 7, 7, 3], ['circle', 17, 7, 3], ['circle', 7, 17, 3], ['circle', 17, 17, 3]] },
 ]
+
+// Sekme simgeleri: halkalardan çizilir.
+function tabIcon(parts, color) {
+  return svg(
+    'svg',
+    { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: color, 'stroke-width': 2, 'aria-hidden': 'true' },
+    parts.map(([kind, cx, cy, r, dash]) =>
+      kind === 'dot' ? svg('circle', { cx, cy, r, fill: color, stroke: 'none' }) : svg('circle', { cx, cy, r, 'stroke-dasharray': dash }),
+    ),
+  )
+}
 
 const view = document.getElementById('view')
 const nav = document.getElementById('nav')
@@ -44,16 +55,17 @@ function render() {
   nav.replaceChildren(
     h(
       'div',
-      { class: 'mx-auto grid max-w-md grid-cols-4' },
+      { class: 'flex gap-1 rounded-full bg-surface p-1.5 shadow-lg shadow-black/40' },
       TABS.map((t) =>
         h(
           'a',
           {
             href: `#/${t.id}`,
-            class: `flex flex-col items-center gap-0.5 py-2 text-[11px] ${t === current ? 'text-emerald-400' : 'text-zinc-400'}`,
+            'aria-label': t.label,
+            'aria-current': t === current ? 'page' : null,
+            class: `flex h-12 w-[76px] items-center justify-center rounded-full ${t === current ? 'bg-text' : 'active:bg-line'}`,
           },
-          h('span', { class: `text-xl ${t === current ? '' : 'opacity-60 grayscale'}` }, t.icon),
-          t.label,
+          tabIcon(t.icon, t === current ? '#15121f' : '#a39db8'),
         ),
       ),
     ),

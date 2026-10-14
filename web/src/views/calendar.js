@@ -1,7 +1,8 @@
-// Takvim: gidilen günler, haftalık özet ve seri.
-import { h, today, ymd, parseDate, addDays, weekStart, shortDate, WEEKDAYS_SHORT, MONTHS, num, groupColor, hoursMinutes } from '../util.js'
+// Takvim (Ritim): ayın günleri bir halkanın üzerinde; gidilen günler o günün hacmine göre
+// büyüyen noktalar. Ortada hafta serisi, altta bu haftanın halkaları.
+import { h, today, ymd, parseDate, addDays, weekStart, WEEKDAYS, WEEKDAYS_SHORT, MONTHS, num, groupColor, hoursMinutes } from '../util.js'
 import { state, exercise, attendedDates, hasSets, volume, workoutMinutes } from '../state.js'
-import { go, card, groupDot, sectionTitle, empty } from '../ui.js'
+import { go, roundBtn, empty } from '../ui.js'
 
 // Bir antrenmanda çalışılan kas grupları (sırayla, tekrarsız).
 function groupsOf(w) {
@@ -27,132 +28,131 @@ export function stats() {
     streak++
     week = addDays(week, -7)
   }
-
-  const weekVolume = state.data.workouts
-    .filter((w) => w.date >= thisWeek && w.date <= t)
-    .reduce((n, w) => n + w.items.reduce((m, it) => m + volume(it.sets), 0), 0)
-
-  return {
-    week: count(thisWeek, addDays(thisWeek, 6)),
-    month: count(t.slice(0, 7) + '-01', t.slice(0, 7) + '-31'),
-    streak,
-    total: days.size,
-    weekVolume,
-  }
+  return { week: count(thisWeek, addDays(thisWeek, 6)), streak, total: days.size }
 }
+
+const SIZE = 310
+const RADIUS = 133
 
 export function calendarView(arg) {
   const month = /^\d{4}-\d{2}$/.test(arg) ? arg : today().slice(0, 7)
   const first = parseDate(`${month}-01`)
   const prevMonth = ymd(new Date(first.getFullYear(), first.getMonth() - 1, 1)).slice(0, 7)
   const nextMonth = ymd(new Date(first.getFullYear(), first.getMonth() + 1, 1)).slice(0, 7)
-  const s = stats()
+  const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
   const t = today()
+  const s = stats()
 
   const byDate = new Map(state.data.workouts.filter(hasSets).map((w) => [w.date, w]))
+  const monthWorkouts = [...byDate.values()].filter((w) => w.date.startsWith(month))
+  const volumes = monthWorkouts.map((w) => w.items.reduce((n, it) => n + volume(it.sets), 0))
+  const maxVol = Math.max(1, ...volumes)
 
-  // Pazartesiden başlayan ay ızgarası.
-  const cells = []
-  const offset = (first.getDay() + 6) % 7
-  for (let i = 0; i < offset; i++) cells.push(h('div'))
-  const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
+  // Halkadaki günler: saat 12'den başlayıp saat yönünde.
+  const pos = (d, r) => {
+    const a = -Math.PI / 2 + ((d - 1) / daysInMonth) * Math.PI * 2
+    return [SIZE / 2 + r * Math.cos(a), SIZE / 2 + r * Math.sin(a)]
+  }
+  const dots = []
   for (let d = 1; d <= daysInMonth; d++) {
     const date = `${month}-${String(d).padStart(2, '0')}`
     const w = byDate.get(date)
-    const groups = w ? groupsOf(w) : []
-    cells.push(
-      h(
-        'button',
-        {
-          type: 'button',
-          class: `flex aspect-square flex-col items-center justify-center rounded-xl text-sm ${w ? 'bg-emerald-600/25 font-bold text-emerald-200' : 'text-zinc-300 active:bg-zinc-800'} ${date === t ? 'ring-2 ring-emerald-400' : ''} ${date > t ? 'text-zinc-600' : ''}`,
-          onclick: () => go(`#/antrenman/${date}`),
-        },
-        h('span', {}, d),
-        h('span', { class: 'mt-0.5 flex h-1.5 gap-0.5' }, groups.slice(0, 4).map((g) => groupDot(g, 'h-1.5 w-1.5'))),
-      ),
+    const vol = w ? w.items.reduce((n, it) => n + volume(it.sets), 0) : 0
+    const size = w ? Math.round(14 + (vol / maxVol) * 12) : 9
+    const [x, y] = pos(d, RADIUS)
+    const color = w ? groupColor(groupsOf(w)[0]).hex : date > t ? '#221e31' : '#3a3452'
+    dots.push(
+      h('button', {
+        type: 'button',
+        'aria-label': `${d} ${MONTHS[first.getMonth()]}${w ? ', antrenman var' : ''}`,
+        class: 'absolute rounded-full',
+        style: `left:${x - 18}px;top:${y - 18}px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;padding:0`,
+        onclick: () => go(`#/antrenman/${date}`),
+      }, h('span', {
+        class: 'block rounded-full',
+        style: `width:${size}px;height:${size}px;background:${color};${date === t ? 'box-shadow:0 0 0 3px #15121f,0 0 0 5px #eeeaf6' : ''}`,
+      })),
     )
   }
+  const labels = [1, 8, 15, 22, 29].filter((d) => d <= daysInMonth).map((d) => {
+    const [x, y] = pos(d, RADIUS - 28)
+    return h('span', { class: 'absolute w-6 text-center text-[11px] text-muted', style: `left:${x - 12}px;top:${y - 8}px`, 'aria-hidden': 'true' }, d)
+  })
 
-  const monthWorkouts = [...byDate.values()].filter((w) => w.date.startsWith(month)).reverse()
-
-  return h(
-    'div',
-    { class: 'space-y-4' },
+  const monthCount = monthWorkouts.length
+  const ring = h(
+    'section',
+    { class: 'relative mx-auto mt-5', style: `width:${SIZE}px;height:${SIZE}px`, 'aria-label': `${MONTHS[first.getMonth()]}: ${monthCount} antrenman` },
+    h('div', { class: 'absolute rounded-full border border-line', style: `inset:${SIZE / 2 - RADIUS}px` }),
+    dots,
+    labels,
     h(
       'div',
-      { class: 'grid grid-cols-3 gap-2' },
-      stat('Bu hafta', `${s.week} gün`),
-      stat('Seri', `${s.streak} hafta`, s.streak >= 2 ? '🔥' : ''),
-      stat('Bu ay', `${s.month} gün`),
+      { class: 'pointer-events-none absolute inset-0 flex flex-col items-center justify-center' },
+      h('span', { class: 'text-[64px] font-semibold leading-none' }, s.streak),
+      h('span', { class: 'text-[15px] text-muted' }, 'haftalık seri'),
+      h('span', { class: 'mt-2.5 text-[13px] text-coral' }, `${month === t.slice(0, 7) ? 'bu ay' : MONTHS[first.getMonth()]} ${monthCount} gün`),
     ),
-    card(
-      {},
-      h(
-        'div',
-        { class: 'mb-3 flex items-center justify-between' },
-        monthBtn('‹', () => go(`#/takvim/${prevMonth}`, true)),
-        h('h2', { class: 'text-lg font-semibold' }, `${MONTHS[first.getMonth()]} ${first.getFullYear()}`),
-        monthBtn('›', () => go(`#/takvim/${nextMonth}`, true)),
-      ),
-      h(
-        'div',
-        { class: 'grid grid-cols-7 gap-1 text-center text-xs text-zinc-500' },
-        [1, 2, 3, 4, 5, 6, 0].map((d) => h('span', { class: 'pb-1' }, WEEKDAYS_SHORT[d])),
-      ),
-      h('div', { class: 'grid grid-cols-7 gap-1' }, cells),
-      month !== t.slice(0, 7)
-        ? h('button', { type: 'button', class: 'mt-3 w-full text-sm text-zinc-400', onclick: () => go(`#/takvim/${t.slice(0, 7)}`, true) }, 'Bu aya dön')
-        : null,
+  )
+
+  // Bu haftanın günleri: gidilen günler dolu daire, bugün çerçeveli.
+  const ws = weekStart(t)
+  const days = attendedDates()
+  const week = h(
+    'section',
+    { class: 'mt-5 grid grid-cols-7 gap-1.5', 'aria-label': `Bu hafta ${s.week} gün` },
+    Array.from({ length: 7 }, (_, k) => {
+      const date = addDays(ws, k)
+      const on = days.has(date)
+      return h(
+        'button',
+        { type: 'button', class: 'flex flex-col items-center gap-1.5', onclick: () => go(`#/antrenman/${date}`), 'aria-label': `${WEEKDAYS[parseDate(date).getDay()]}${on ? ', gidildi' : ''}` },
+        h('span', {
+          class: 'block h-[38px] w-[38px] rounded-full',
+          style: on ? 'background:#ff8a6b' : `border:2px solid ${date === t ? '#eeeaf6' : '#2e2942'}`,
+        }),
+        h('span', { class: `text-xs ${date === t ? 'text-text' : 'text-muted'}` }, WEEKDAYS_SHORT[parseDate(date).getDay()]),
+      )
+    }),
+  )
+
+  const list = [...monthWorkouts].reverse()
+  return h(
+    'div',
+    {},
+    h(
+      'header',
+      { class: 'flex items-center justify-between' },
+      roundBtn('left', () => go(`#/takvim/${prevMonth}`, true), 'Önceki ay'),
+      h('h1', { class: 'text-[22px] font-semibold' }, `${MONTHS[first.getMonth()]} ${first.getFullYear()}`),
+      roundBtn('right', () => go(`#/takvim/${nextMonth}`, true), 'Sonraki ay'),
     ),
-    s.weekVolume ? h('p', { class: 'px-1 text-sm text-zinc-400' }, `Bu hafta toplam ${num(Math.round(s.weekVolume))} kg kaldırdın. Toplam ${s.total} antrenman.`) : null,
-    sectionTitle(`${MONTHS[first.getMonth()]} antrenmanları`),
-    monthWorkouts.length
+    ring,
+    month !== t.slice(0, 7) ? h('div', { class: 'text-center' }, h('button', { type: 'button', class: 'py-1 text-sm text-muted', onclick: () => go(`#/takvim/${t.slice(0, 7)}`, true) }, 'Bu aya dön')) : null,
+    week,
+    h('p', { class: 'mt-6 px-1 text-sm text-muted' }, `Toplam ${s.total} antrenman`),
+    list.length
       ? h(
-          'div',
-          { class: 'space-y-2' },
-          monthWorkouts.map((w) => {
+          'section',
+          { class: 'mt-3 space-y-2', 'aria-label': 'Bu ayın antrenmanları' },
+          list.map((w) => {
             const groups = groupsOf(w)
-            const sets = w.items.reduce((n, it) => n + it.sets.length, 0)
+            const vol = w.items.reduce((n, it) => n + volume(it.sets), 0)
+            const min = workoutMinutes(w)
+            const d = parseDate(w.date)
             return h(
               'button',
-              { type: 'button', class: 'flex w-full items-center gap-3 rounded-2xl bg-zinc-900 px-4 py-3 text-left active:bg-zinc-800', onclick: () => go(`#/antrenman/${w.date}`) },
+              { type: 'button', class: 'flex w-full items-center gap-3 rounded-[22px] bg-surface px-4 py-3 text-left active:bg-line', onclick: () => go(`#/antrenman/${w.date}`) },
+              h('span', { class: 'flex gap-1' }, groups.slice(0, 3).map((g) => h('span', { class: 'block h-2.5 w-2.5 rounded-full', style: `background:${groupColor(g).hex}` }))),
               h(
-                'div',
-                { class: 'w-14 shrink-0 text-center' },
-                h('p', { class: 'text-lg font-bold leading-none' }, parseDate(w.date).getDate()),
-                h('p', { class: 'text-xs text-zinc-500' }, WEEKDAYS_SHORT[parseDate(w.date).getDay()]),
-              ),
-              h(
-                'div',
+                'span',
                 { class: 'min-w-0 flex-1' },
-                h('p', { class: 'truncate text-sm' }, groups.join(', ') || shortDate(w.date)),
-                h(
-                  'p',
-                  { class: 'truncate text-xs text-zinc-500' },
-                  `${w.items.filter((it) => it.sets.length).length} hareket · ${sets} set · `,
-                  workoutMinutes(w) ? `${hoursMinutes(workoutMinutes(w))} · ` : '',
-                  w.items
-                    .filter((it) => it.sets.length)
-                    .map((it) => exercise(it.exerciseId)?.name)
-                    .join(', '),
-                ),
+                h('span', { class: 'block truncate font-medium' }, `${w.date === t ? 'Bugün' : `${d.getDate()} ${WEEKDAYS[d.getDay()]}`} · ${groups.join(', ')}`),
               ),
-              h('span', { class: 'flex gap-1' }, groups.slice(0, 3).map((g) => h('span', { class: 'h-8 w-1 rounded-full', style: `background:${groupColor(g).hex}` }))),
+              h('span', { class: 'shrink-0 text-[13px] text-muted' }, [min ? hoursMinutes(min) : null, vol ? `${num(Math.round(vol))} kg` : null].filter(Boolean).join(' · ')),
             )
           }),
         )
       : empty('Bu ay henüz antrenman yok.'),
   )
 }
-
-const stat = (label, value, icon = '') =>
-  h(
-    'div',
-    { class: 'rounded-2xl bg-zinc-900 px-3 py-3 text-center' },
-    h('p', { class: 'text-xs text-zinc-400' }, label),
-    h('p', { class: 'mt-1 text-lg font-bold' }, `${value}${icon ? ` ${icon}` : ''}`),
-  )
-
-const monthBtn = (text, onclick) =>
-  h('button', { type: 'button', class: 'h-9 w-9 rounded-full bg-zinc-800 text-xl leading-none active:bg-zinc-700', onclick }, text)

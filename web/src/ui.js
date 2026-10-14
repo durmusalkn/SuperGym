@@ -1,5 +1,5 @@
 // Ortak arayüz parçaları: mesaj kutusu, alttan açılan paneller, sayfa geçişleri.
-import { h, groupColor } from './util.js'
+import { h, groupColor, svg } from './util.js'
 
 // --- Mesaj ---
 
@@ -10,7 +10,7 @@ export function show(text, ok = true, sticky = false) {
     h(
       'div',
       {
-        class: `pointer-events-auto mx-auto max-w-md rounded-xl px-4 py-3 text-sm shadow-lg ${ok ? 'bg-emerald-700 text-white' : 'bg-red-800 text-red-50'}`,
+        class: `pointer-events-auto mx-auto max-w-md rounded-3xl px-5 py-3 text-sm font-medium shadow-lg shadow-black/40 ${ok ? 'bg-text text-ink' : 'bg-[#5c1f2a] text-[#ffd9de]'}`,
         onclick: () => el.replaceChildren(),
       },
       text,
@@ -55,11 +55,15 @@ export function openSheet(title, body) {
       { class: 'mx-auto flex h-full max-w-md flex-col' },
       h(
         'div',
-        { class: 'flex items-center justify-between border-b border-zinc-800 px-4 py-3' },
-        h('h2', { class: 'text-lg font-semibold' }, title),
-        h('button', { class: 'rounded-lg px-3 py-1 text-2xl leading-none text-zinc-400', onclick: () => closeSheet() }, '×'),
+        { class: 'flex items-center justify-between px-5 pb-2 pt-4' },
+        h('h2', { class: 'text-xl font-semibold' }, title),
+        h(
+          'button',
+          { type: 'button', class: 'flex h-11 w-11 items-center justify-center rounded-full border border-line', onclick: () => closeSheet(), 'aria-label': 'Kapat' },
+          icon('x', 18),
+        ),
       ),
-      h('div', { class: 'flex-1 overflow-y-auto p-4' }, body),
+      h('div', { class: 'flex-1 overflow-y-auto px-5 pb-8 pt-2' }, body),
     ),
   )
   el.classList.remove('hidden')
@@ -89,28 +93,32 @@ window.addEventListener('popstate', () => {
 
 // --- Küçük parçalar ---
 
-export const groupChip = (group) =>
-  h('span', { class: `inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${groupColor(group).chip}` }, group)
+export const groupChip = (group) => {
+  const c = groupColor(group).hex
+  return h('span', { class: 'inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium', style: `background:${c}26;color:${c}` }, group)
+}
 
-export const groupDot = (group, size = 'h-2 w-2') => h('span', { class: `inline-block rounded-full ${size} ${groupColor(group).dot}` })
+export const groupDot = (group, size = 8) =>
+  h('span', { class: 'inline-block shrink-0 rounded-full', style: `width:${size}px;height:${size}px;background:${groupColor(group).hex}` })
 
 export const card = (props, ...children) =>
-  h('section', { ...props, class: `rounded-2xl bg-zinc-900 p-4 ${props?.class || ''}` }, ...children)
+  h('section', { ...props, class: `rounded-[28px] bg-surface p-5 ${props?.class || ''}` }, ...children)
 
 export const button = (text, onclick, kind = 'primary', extra = '') => {
   const styles = {
-    primary: 'bg-emerald-600 text-white active:bg-emerald-700 font-semibold',
-    secondary: 'bg-zinc-800 text-zinc-100 active:bg-zinc-700',
-    danger: 'bg-red-900/60 text-red-200 active:bg-red-900',
-    ghost: 'text-zinc-400 active:text-zinc-200',
+    primary: 'bg-coral text-ink font-semibold active:opacity-80',
+    secondary: 'bg-line text-text active:opacity-80',
+    outline: 'border border-line text-text active:bg-surface',
+    danger: 'bg-[#3a1d27] text-[#ffb3be] active:opacity-80',
+    ghost: 'text-muted active:text-text',
   }
-  return h('button', { type: 'button', class: `rounded-xl px-4 py-2.5 ${styles[kind]} ${extra}`, onclick }, text)
+  return h('button', { type: 'button', class: `rounded-full px-5 py-3 ${styles[kind]} ${extra}`, onclick }, text)
 }
 
 export const input = (props) =>
   h('input', {
     ...props,
-    class: `w-full rounded-xl bg-zinc-800 px-3 py-2.5 text-zinc-100 outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-emerald-500 ${props.class || ''}`,
+    class: `w-full rounded-2xl bg-line/60 px-4 py-3 text-text outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-coral ${props.class || ''}`,
   })
 
 export const select = (props, options) =>
@@ -118,14 +126,42 @@ export const select = (props, options) =>
     'select',
     {
       ...props,
-      class: `w-full rounded-xl bg-zinc-800 px-3 py-2.5 text-zinc-100 outline-none focus:ring-2 focus:ring-emerald-500 ${props.class || ''}`,
+      class: `w-full rounded-2xl bg-line/60 px-4 py-3 text-text outline-none focus:ring-2 focus:ring-coral disabled:opacity-50 ${props.class || ''}`,
     },
     options.map(([value, label]) => h('option', { value, selected: String(value) === String(props.value) }, label)),
   )
 
 export const sectionTitle = (text, extra) =>
-  h('div', { class: 'mb-2 mt-6 flex items-center justify-between px-1' }, h('h2', { class: 'text-sm font-semibold uppercase tracking-wide text-zinc-400' }, text), extra)
+  h('div', { class: 'mb-3 mt-8 flex items-center justify-between px-1' }, h('h2', { class: 'text-sm font-medium text-muted' }, text), extra)
 
-export const empty = (text) => h('p', { class: 'py-6 text-center text-sm text-zinc-500' }, text)
+export const empty = (text) => h('p', { class: 'py-6 text-center text-sm text-muted' }, text)
 
 export const android = () => window.SuperGymAndroid
+
+// Çizgi simgeler (24×24).
+const ICONS = {
+  x: 'M6 6l12 12M18 6L6 18',
+  plus: 'M12 5v14M5 12h14',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  left: 'M15 5l-7 7 7 7',
+  right: 'M9 5l7 7-7 7',
+  up: 'M6 15l6-6 6 6',
+  down: 'M6 9l6 6 6-6',
+  link: 'M9 15l6-6M10.5 6.5l1-1a4 4 0 015.7 5.7l-1 1M13.5 17.5l-1 1a4 4 0 01-5.7-5.7l1-1',
+  trash: 'M5 7h14M10 11v6M14 11v6M7 7l1 12h8l1-12M9 7V4h6v3',
+  note: 'M6 4h9l3 3v13H6zM9 10h6M9 14h6',
+}
+export const icon = (name, size = 20, color = 'currentColor', width = 2) =>
+  svg(
+    'svg',
+    { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color, 'stroke-width': width, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+    svg('path', { d: ICONS[name] }),
+  )
+
+// Yuvarlak simge düğmesi.
+export const roundBtn = (name, onclick, label, extra = '') =>
+  h(
+    'button',
+    { type: 'button', class: `flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-text active:bg-surface ${extra}`, onclick, 'aria-label': label },
+    icon(name, 18),
+  )

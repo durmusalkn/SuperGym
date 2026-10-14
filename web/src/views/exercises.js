@@ -1,44 +1,100 @@
 // Hareketler sekmesi: hareket listesi, arşiv, programlar, ayarlar ve yedek.
-import { h, today, num, shortDate, GROUPS, WEEKDAYS_SHORT } from '../util.js'
-import { state, api, mutate, exercise, records } from '../state.js'
-import { render, show, card, button, input, select, sectionTitle, groupDot, android } from '../ui.js'
+import { h, today, num, shortDate, parseDate, GROUPS, WEEKDAYS_SHORT, groupColor } from '../util.js'
+import { state, api, mutate, exercise, records, history } from '../state.js'
+import { render, show, card, button, input, select, sectionTitle, icon, android } from '../ui.js'
+import { progressRing } from '../rings.js'
 import { editExercise, editTemplate } from '../sheets.js'
+
+// Liste filtresi: seçili kas grubu ve arama metni.
+let filterGroup = null
+let query = ''
 
 export function exercisesView() {
   const active = state.data.exercises.filter((e) => !e.archived)
   const archived = state.data.exercises.filter((e) => e.archived)
 
+  const list = h('section', { class: 'mt-4 space-y-2', 'aria-label': 'Hareket listesi' })
+  const fill = () => {
+    const q = query.trim().toLocaleLowerCase('tr')
+    const rows = active
+      .filter((e) => (!filterGroup || e.group === filterGroup) && e.name.toLocaleLowerCase('tr').includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+    list.replaceChildren(...(rows.length ? rows.map(row) : [h('p', { class: 'py-4 text-center text-sm text-muted' }, 'Bu aramayla hareket yok.')]))
+  }
+  fill()
+
+  // Kas grupları baloncuk: boyutu gruptaki hareket sayısı; dokununca liste o gruba süzülür.
+  const counts = GROUPS.map((g) => [g, active.filter((e) => e.group === g).length]).filter(([, n]) => n)
+  const maxN = Math.max(1, ...counts.map(([, n]) => n))
+  const bubbles = h(
+    'section',
+    { class: 'mt-4 flex flex-wrap items-center justify-center gap-2.5', 'aria-label': 'Kas grupları' },
+    counts.map(([g, n]) => {
+      const size = Math.round(62 + (n / maxN) * 30)
+      const on = filterGroup === g
+      const c = groupColor(g).hex
+      return h(
+        'button',
+        {
+          type: 'button',
+          'aria-pressed': on ? 'true' : 'false',
+          class: 'flex flex-col items-center justify-center rounded-full',
+          style: `width:${size}px;height:${size}px;background:${on ? `${c}26` : '#1f1b2d'};border:${on ? `2px solid ${c}` : '1px solid #2e2942'}`,
+          onclick: () => {
+            filterGroup = on ? null : g
+            render()
+          },
+        },
+        h('span', { class: 'text-[13px] font-semibold' }, g),
+        h('span', { class: 'text-[11px] text-muted' }, `${n} hareket`),
+      )
+    }),
+  )
+
   return h(
     'div',
-    { class: 'space-y-2' },
+    {},
+    h(
+      'header',
+      { class: 'flex items-center justify-between' },
+      h('h1', { class: 'text-[22px] font-semibold' }, 'Hareketler'),
+      h(
+        'button',
+        { type: 'button', 'aria-label': 'Yeni hareket', class: 'flex h-11 w-11 items-center justify-center rounded-full bg-coral', onclick: () => editExercise(null) },
+        icon('plus', 20, '#15121f', 2.6),
+      ),
+    ),
     h(
       'div',
-      { class: 'flex items-center justify-between' },
-      h('h1', { class: 'text-xl font-bold' }, 'Hareketler'),
-      button('+ Yeni', () => editExercise(null), 'primary', 'py-2 text-sm'),
+      { class: 'mt-4' },
+      h('input', {
+        type: 'search',
+        value: query,
+        placeholder: 'Hareket ara',
+        'aria-label': 'Hareket ara',
+        class: 'h-[46px] w-full rounded-full bg-surface px-5 text-[15px] text-text outline-none placeholder:text-zinc-500 focus:ring-2 focus:ring-coral',
+        oninput: (ev) => {
+          query = ev.target.value
+          fill()
+        },
+      }),
     ),
-    GROUPS.map((g) => {
-      const list = active.filter((e) => e.group === g).sort((a, b) => a.name.localeCompare(b.name, 'tr'))
-      if (!list.length) return null
-      return [
-        h('h2', { class: 'flex items-center gap-2 px-1 pt-4 text-xs font-semibold uppercase tracking-wide text-zinc-400' }, groupDot(g), g),
-        h('div', { class: 'divide-y divide-zinc-800 overflow-hidden rounded-2xl bg-zinc-900' }, list.map(row)),
-      ]
-    }),
+    bubbles,
+    list,
     archived.length
       ? h(
           'details',
-          { class: 'pt-4' },
-          h('summary', { class: 'px-1 text-sm text-zinc-400' }, `Arşiv (${archived.length})`),
+          { class: 'mt-3 rounded-[22px] bg-surface' },
+          h('summary', { class: 'cursor-pointer px-5 py-4 text-sm text-muted' }, `Arşiv (${archived.length})`),
           h(
             'div',
-            { class: 'mt-2 divide-y divide-zinc-800 overflow-hidden rounded-2xl bg-zinc-900' },
+            { class: 'space-y-1 px-2 pb-2' },
             archived.map((e) =>
               h(
                 'div',
-                { class: 'flex items-center justify-between px-4 py-3' },
-                h('span', { class: 'text-zinc-400' }, e.name),
-                button('Geri al', () => restore(e), 'secondary', 'py-1.5 text-sm'),
+                { class: 'flex items-center justify-between rounded-2xl px-3 py-2' },
+                h('span', { class: 'text-muted' }, e.name),
+                button('Geri al', () => restore(e), 'outline', 'py-2 text-sm'),
               ),
             ),
           ),
@@ -51,15 +107,29 @@ export function exercisesView() {
   )
 }
 
+// Satırdaki küçük halka: son yapılışın en iyisinin rekora oranı.
 function row(e) {
   const rec = records(e.id)
-  const right = e.kind === 'cardio' ? (rec.km ? `${num(rec.km)} km` : 'kardiyo') : rec.weight ? `${num(rec.weight)} kg` : ''
+  const hist = history(e.id)
+  const last = hist[hist.length - 1]
+  const cardio = e.kind === 'cardio'
+  const best = (sets) => Math.max(0, ...sets.map((s) => (cardio ? s.km || 0 : s.weight || 0)))
+  const top = cardio ? rec.km : rec.weight
+  const ratio = last && top ? best(last.sets) / top : 0
+  const right = cardio ? (rec.km ? `${num(rec.km)} km` : '') : rec.weight ? `${num(rec.weight)} kg` : ''
+  const meta = [cardio ? 'kardiyo' : `${e.repMin || 8}–${e.repMax || 12} tekrar`, last ? since(last.date) : 'henüz yapılmadı'].join(' · ')
   return h(
     'button',
-    { type: 'button', class: 'flex w-full items-center justify-between px-4 py-3 text-left active:bg-zinc-800', onclick: () => editExercise(e) },
-    h('span', {}, e.name),
-    h('span', { class: 'text-sm text-zinc-500' }, right),
+    { type: 'button', class: 'flex w-full items-center gap-3 rounded-[22px] bg-surface px-3.5 py-2.5 text-left active:bg-line', onclick: () => editExercise(e) },
+    progressRing(36, 4, ratio, groupColor(e.group).hex),
+    h('span', { class: 'min-w-0 flex-1' }, h('span', { class: 'block truncate font-medium' }, e.name), h('span', { class: 'block text-xs text-muted' }, meta)),
+    h('span', { class: 'shrink-0 text-[15px] font-semibold' }, right),
   )
+}
+
+function since(date) {
+  const days = Math.round((parseDate(today()) - parseDate(date)) / 86400000)
+  return days <= 0 ? 'bugün' : days === 1 ? 'dün' : `${days} gün önce`
 }
 
 async function restore(e) {
@@ -74,29 +144,32 @@ async function restore(e) {
 
 function templatesSection() {
   const list = state.data.templates
+  const tints = ['#2a1f2a', '#221f35', '#2a2620', '#1f2a29']
   return [
-    sectionTitle('Programlar', button('+ Yeni', () => editTemplate(null), 'ghost', 'py-0 text-sm text-emerald-400')),
-    list.length
-      ? h(
-          'div',
-          { class: 'divide-y divide-zinc-800 overflow-hidden rounded-2xl bg-zinc-900' },
-          list.map((t) =>
-            h(
-              'button',
-              { type: 'button', class: 'block w-full px-4 py-3 text-left active:bg-zinc-800', onclick: () => editTemplate(t) },
-              h('p', {}, t.name),
-              h(
-                'p',
-                { class: 'truncate text-xs text-zinc-500' },
-                t.exerciseIds
-                  .map((id) => exercise(id)?.name)
-                  .filter(Boolean)
-                  .join(', ') || 'Hareket yok',
-              ),
-            ),
-          ),
-        )
-      : card({}, h('p', { class: 'text-sm text-zinc-400' }, 'Sık yaptığın antrenmanları (örn. Push / Pull / Bacak) program olarak kaydet; antrenman ekranında tek dokunuşla tüm hareketler eklensin.')),
+    sectionTitle('Programlar'),
+    h(
+      'div',
+      { class: 'grid grid-cols-3 gap-2' },
+      list.map((t, k) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'flex h-[74px] flex-col items-center justify-center gap-0.5 rounded-[22px] px-2 active:opacity-80',
+            style: `background:${tints[k % tints.length]}`,
+            onclick: () => editTemplate(t),
+          },
+          h('span', { class: 'max-w-full truncate font-semibold' }, t.name),
+          h('span', { class: 'text-xs text-muted' }, `${t.exerciseIds.filter((id) => exercise(id)).length} hareket`),
+        ),
+      ),
+      h(
+        'button',
+        { type: 'button', 'aria-label': 'Yeni program', class: 'flex h-[74px] items-center justify-center rounded-[22px] border border-dashed border-zinc-600 text-muted', onclick: () => editTemplate(null) },
+        icon('plus', 22),
+      ),
+    ),
+    list.length ? null : h('p', { class: 'mt-2 px-1 text-xs text-muted' }, 'Sık yaptığın antrenmanları (Push, Pull, Bacak) program olarak kaydet; antrenmanda tek dokunuşla eklensin.'),
   ]
 }
 
@@ -139,7 +212,7 @@ function remindersSection() {
             {
               type: 'button',
               disabled: !nativeOn,
-              class: `rounded-lg py-2 text-xs ${on ? 'bg-emerald-600 font-semibold text-white' : 'bg-zinc-800 text-zinc-300'}`,
+              class: `h-10 rounded-full text-xs ${on ? 'bg-coral font-semibold text-ink' : 'bg-line text-zinc-300'}`,
               onclick: () => saveReminder({ reminderDays: on ? st.reminderDays.filter((x) => x !== d) : [...st.reminderDays, d] }),
             },
             WEEKDAYS_SHORT[d],
@@ -178,7 +251,7 @@ function remindersSection() {
       nativeOn && anyOn && !allowed
         ? h(
             'button',
-            { type: 'button', class: 'mt-3 w-full rounded-xl bg-amber-500/15 px-3 py-2 text-left text-sm text-amber-200', onclick: () => android().requestNotifications() },
+            { type: 'button', class: 'mt-3 w-full rounded-[20px] bg-sun/10 px-4 py-3 text-left text-sm text-sun', onclick: () => android().requestNotifications() },
             'Bildirim izni kapalı: hatırlatmalar gelmez. İzin vermek için dokun (ya da telefonun Ayarlar > Uygulamalar > SuperGym > Bildirimler).',
           )
         : null,
@@ -213,7 +286,7 @@ function settingsSection() {
         { class: 'mt-4 flex items-start gap-3' },
         h('input', {
           type: 'checkbox',
-          class: 'mt-0.5 h-5 w-5 accent-emerald-500',
+          class: 'mt-0.5 h-5 w-5 accent-[#ff8a6b]',
           checked: !!state.data.settings.showRpe,
           onchange: (ev) => saveSettings({ showRpe: ev.target.checked }),
         }),
@@ -239,7 +312,7 @@ function backupSection() {
       h('div', { class: 'grid grid-cols-2 gap-2' }, button('Dışa aktar', exportData, 'secondary'), button('İçe aktar', () => document.getElementById('import-file').click(), 'secondary')),
       h(
         'div',
-        { class: 'mt-4 space-y-1 border-t border-zinc-800 pt-4' },
+        { class: 'mt-5 space-y-1 border-t border-line pt-4' },
         h('span', { class: 'text-sm' }, 'Otomatik yedek'),
         select(
           { value: st.backupDays, disabled: !nativeBackup, onchange: (ev) => saveSettings({ backupDays: Number(ev.target.value) }) },

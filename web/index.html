@@ -7,17 +7,19 @@
     <title>SuperGym</title>
     <script type="module" src="/src/main.js"></script>
   </head>
-  <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
-    <main id="view" class="mx-auto max-w-md p-4 pb-40"></main>
+  <body class="min-h-screen bg-ink font-sans text-text antialiased">
+    <main id="view" class="mx-auto max-w-md px-5 pb-40 pt-5"></main>
 
-    <!-- Dinlenme sayacı ve alt menü -->
-    <div class="fixed inset-x-0 bottom-0 z-30">
-      <div id="timer"></div>
-      <nav id="nav" class="border-t border-zinc-800 bg-zinc-950/95 backdrop-blur"></nav>
+    <!-- Küçültülmüş dinlenme sayacı ve alttaki yüzen menü -->
+    <div class="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col items-center gap-2 pb-4">
+      <div id="timer" class="pointer-events-auto"></div>
+      <nav id="nav" class="pointer-events-auto"></nav>
     </div>
 
+    <!-- Dinlenme ekranı (nefes) -->
+    <div id="rest" class="fixed inset-0 z-[35] hidden"></div>
+    <div id="sheet" class="fixed inset-0 z-40 hidden bg-ink"></div>
     <div id="message" class="pointer-events-none fixed inset-x-0 top-0 z-50 p-3"></div>
-    <div id="sheet" class="fixed inset-0 z-40 hidden bg-zinc-950"></div>
     <input id="import-file" type="file" accept="application/json,.json" class="hidden" />
   </body>
 </html>
