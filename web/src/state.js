@@ -82,12 +82,16 @@ export const hasSets = (w) => w.items.some((it) => it.sets.length > 0)
 // Antrenmana gidilen günler (en az bir set girilmiş).
 export const attendedDates = () => new Set(state.data.workouts.filter(hasSets).map((w) => w.date))
 
-// Bir hareketin geçmişi: [{ date, sets }] (eskiden yeniye, seti olan günler).
+// Isınma setleri rekora, hacme, grafiğe ve "geçen sefer"e sayılmaz.
+export const workSets = (sets) => sets.filter((s) => !s.warmup)
+
+// Bir hareketin geçmişi: [{ date, sets }] (eskiden yeniye, yalnızca asıl setler).
 export function history(exId) {
   const out = []
   for (const w of state.data.workouts) {
     for (const it of w.items) {
-      if (it.exerciseId === exId && it.sets.length) out.push({ date: w.date, sets: it.sets, note: it.note })
+      const sets = it.exerciseId === exId ? workSets(it.sets) : []
+      if (sets.length) out.push({ date: w.date, sets, note: it.note })
     }
   }
   return out
@@ -101,7 +105,7 @@ export function lastBefore(exId, date) {
 
 // Tahmini tek tekrar maksimumu (Epley).
 export const oneRM = (s) => (s.reps > 1 ? s.weight * (1 + s.reps / 30) : s.weight)
-export const volume = (sets) => sets.reduce((sum, s) => sum + (s.reps || 0) * (s.weight || 0), 0)
+export const volume = (sets) => workSets(sets).reduce((sum, s) => sum + (s.reps || 0) * (s.weight || 0), 0)
 
 // Rekorlar; exceptDate verilirse o gün hesaba katılmaz.
 export function records(exId, exceptDate) {

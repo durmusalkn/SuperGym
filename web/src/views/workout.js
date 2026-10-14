@@ -1,6 +1,6 @@
 // Antrenman ekranı: seçilen günün hareketleri ve setleri.
 import { h, today, addDays, longDate, shortDate, relativeDay, isValidDate, num, parseNum } from '../util.js'
-import { state, exercise, workoutFor, saveWorkout, lastBefore, records, volume } from '../state.js'
+import { state, exercise, workoutFor, saveWorkout, lastBefore, records, volume, workSets } from '../state.js'
 import { go, render, show, card, button, groupChip, empty } from '../ui.js'
 import { pickExercise, editTemplate } from '../sheets.js'
 import { startRest } from '../timer.js'
@@ -107,7 +107,7 @@ export function workoutView(arg) {
 }
 
 function summaryText(w) {
-  const sets = w.items.reduce((n, it) => n + it.sets.length, 0)
+  const sets = w.items.reduce((n, it) => n + workSets(it.sets).length, 0)
   const vol = w.items.reduce((n, it) => n + volume(it.sets), 0)
   return sets ? `${w.items.length} hareket · ${sets} set${vol ? ` · ${num(Math.round(vol))} kg toplam` : ''}` : ''
 }
@@ -149,7 +149,7 @@ function itemCard(date, i) {
   if (!cardio && rec.sessions) {
     let best = rec.weight
     it.sets.forEach((s, j) => {
-      if ((s.weight || 0) > best) [best, prIndex] = [s.weight, j]
+      if (!s.warmup && (s.weight || 0) > best) [best, prIndex] = [s.weight, j]
     })
   }
 
@@ -160,12 +160,14 @@ function itemCard(date, i) {
   const grid = 'grid grid-cols-[2rem_1fr_1fr_2.75rem] items-center gap-2'
   const boxClass = 'w-full rounded-lg bg-zinc-800 px-2 py-2 text-center text-base outline-none focus:ring-2 focus:ring-emerald-500'
 
-  // Girilmiş setler: kutular doğrudan düzenlenebilir.
+  // Girilmiş setler: kutular doğrudan düzenlenebilir. Set numarasına dokununca set
+  // ısınma seti (I) olur ya da geri döner.
+  let workNo = 0
   const rows = it.sets.map((s, j) =>
     h(
       'div',
       { class: grid },
-      h('span', { class: 'text-center text-sm text-zinc-400' }, j === prIndex ? '🏆' : j + 1),
+      setNumber(s.warmup ? 'I' : j === prIndex ? '🏆' : ++workNo, s.warmup, () => toggleWarmup(date, i, j)),
       setInput(boxClass, s[keyA], 'decimal', (v) => editSet(date, i, j, keyA, v)),
       setInput(boxClass, s[keyB], cardio ? 'decimal' : 'numeric', (v) => editSet(date, i, j, keyB, v)),
       h(
@@ -178,6 +180,11 @@ function itemCard(date, i) {
 
   // Yeni set satırı: bu antrenmandaki son setle, yoksa geçen seferin ilk setiyle dolu gelir.
   const prev = it.sets[it.sets.length - 1] || last?.sets[0] || {}
+  let newWarmup = false
+  const newNo = setNumber(workNo + 1, false, () => {
+    newWarmup = !newWarmup
+    styleSetNumber(newNo, newWarmup ? 'I' : workNo + 1, newWarmup)
+  })
   const newA = h('input', { inputmode: 'decimal', value: field(prev[keyA]), placeholder: colA, class: `${boxClass} bg-zinc-950 ring-1 ring-zinc-700` })
   const newB = h('input', {
     inputmode: cardio ? 'decimal' : 'numeric',
@@ -188,7 +195,7 @@ function itemCard(date, i) {
   const addRow = h(
     'div',
     { class: grid },
-    h('span', { class: 'text-center text-sm text-zinc-500' }, it.sets.length + 1),
+    newNo,
     newA,
     newB,
     h(
@@ -196,7 +203,12 @@ function itemCard(date, i) {
       {
         type: 'button',
         class: 'h-10 rounded-lg bg-emerald-600 text-xl font-bold text-white active:bg-emerald-700',
-        onclick: () => addSet(date, i, { [keyA]: parseNum(newA.value), [keyB]: keyB === 'reps' ? Math.round(parseNum(newB.value)) : parseNum(newB.value) }),
+        onclick: () =>
+          addSet(date, i, {
+            [keyA]: parseNum(newA.value),
+            [keyB]: keyB === 'reps' ? Math.round(parseNum(newB.value)) : parseNum(newB.value),
+            ...(newWarmup ? { warmup: true } : {}),
+          }),
         'aria-label': 'Set ekle',
       },
       '+',
@@ -230,8 +242,30 @@ function itemCard(date, i) {
       h('div', { class: `${grid} text-center text-xs text-zinc-500` }, h('span', {}, 'Set'), h('span', {}, colA), h('span', {}, colB), h('span')),
       rows,
       addRow,
+      !it.sets.length && !cardio ? h('p', { class: 'pt-1 text-xs text-zinc-500' }, 'İpucu: set numarasına dokunursan ısınma seti (I) olur; rekora ve grafiğe sayılmaz.') : null,
     ),
   )
+}
+
+function setNumber(label, warmup, onclick) {
+  const btn = h('button', { type: 'button', onclick, 'aria-label': 'Isınma seti yap/geri al' })
+  styleSetNumber(btn, label, warmup)
+  return btn
+}
+
+function styleSetNumber(btn, label, warmup) {
+  btn.textContent = label
+  btn.className = `h-10 rounded-lg text-center text-sm ${warmup ? 'bg-amber-500/15 font-bold text-amber-300' : 'text-zinc-400 active:bg-zinc-800'}`
+}
+
+function toggleWarmup(date, i, j) {
+  const w = workoutFor(date)
+  const s = w.items[i]?.sets[j]
+  if (!s) return
+  if (s.warmup) delete s.warmup
+  else s.warmup = true
+  saveWorkout(w)
+  render()
 }
 
 function setInput(cls, value, mode, onchange) {
@@ -262,11 +296,11 @@ function addSet(date, i, set) {
     return show(ex.kind === 'cardio' ? 'Süre ya da mesafe girin.' : 'Tekrar sayısını girin.', false)
   }
   const rec = records(ex.id, date)
-  const bestToday = Math.max(0, ...it.sets.map((s) => s.weight || 0))
+  const bestToday = Math.max(0, ...it.sets.filter((s) => !s.warmup).map((s) => s.weight || 0))
   it.sets.push(set)
   saveWorkout(w)
   render()
-  if (ex.kind === 'weight' && rec.sessions && set.weight > rec.weight && set.weight > bestToday) {
+  if (ex.kind === 'weight' && !set.warmup && rec.sessions && set.weight > rec.weight && set.weight > bestToday) {
     show(`🏆 Yeni rekor! ${ex.name}: ${num(set.weight)} kg`)
   }
   if (date === today()) startRest(state.data.settings.restSeconds)
