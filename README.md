@@ -24,7 +24,8 @@ Tasarım dili **Ritim**: antrenman bir döngü (efor, nefes, tekrar), bu yüzden
 - **Antrenman alarmları (Plan sekmesi):** her gün için ayrı saat ve program (örn. Salı 18:00 Push, Cumartesi
   09:00 Legs). Gitme saatinden önce o günün hareketlerini gösteren hazırlık bildirimi; gitme saatinde uygulama
   kapalıyken de yüklediğin resim tam ekran açılır ve alarm çalar. "Antrenmana girdim" denene ya da o gün set
-  girilene kadar 5 dakikada bir tekrar çalar (en fazla 2 saat); erteleme ve "Bugün gitmiyorum" da var.
+  girilene kadar 5 dakikada bir tekrar çalar (en fazla 2 saat); erteleme de var. Alarm sesi telefonun
+  seslerinden ya da kendi müzik dosyandan seçilir; izin verilirse fotoğraf telefon elindeyken de öne gelir.
   "Antrenmana girdim" uygulamayı o günün programıyla açar.
 - **Verileri sıfırla:** yalnızca antrenman geçmişi (hareketler, puanlar, programlar ve alarmlar kalır) ya da
   fabrika ayarları.

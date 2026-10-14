@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Insets;
+import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -29,6 +30,8 @@ public class MainActivity extends Activity {
     private static final int REQUEST_EXPORT = 2;
 
     private static final int REQUEST_PERMISSION = 3;
+    private static final int REQUEST_SOUND = 4;
+    private static final int REQUEST_SOUND_FILE = 5;
 
     private static boolean visible;
 
@@ -160,7 +163,22 @@ public class MainActivity extends Activity {
             }
             pendingExport = null;
             if (uri != null) webView.evaluateJavascript("window.onExportDone(" + ok + ")", null);
+        } else if (requestCode == REQUEST_SOUND && resultCode == RESULT_OK && data != null) {
+            // Ses listesinden seçim; "Varsayılan" seçilirse null gelir.
+            Uri picked = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
+            AlarmSound.set(this, picked == null || RingtoneManager.isDefault(picked) ? null : picked);
+            soundChanged(true);
+        } else if (requestCode == REQUEST_SOUND_FILE && uri != null) {
+            // Dosya kopyalanırken arayüz donmasın.
+            new Thread(() -> {
+                boolean ok = AlarmSound.importFile(this, uri);
+                runOnUiThread(() -> soundChanged(ok));
+            }).start();
         }
+    }
+
+    private void soundChanged(boolean ok) {
+        if (webView != null) webView.evaluateJavascript("window.onAlarmSoundChanged && window.onAlarmSoundChanged(" + ok + ")", null);
     }
 
     private void openSettings(Intent intent) {
@@ -272,6 +290,62 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String takeAlarmStart() {
             return WorkoutAlarms.takeStart(MainActivity.this);
+        }
+
+        // Alarm sesi: telefonun ses listesi ya da telefondaki bir müzik dosyası.
+        @JavascriptInterface
+        public String alarmSoundName() {
+            return AlarmSound.title(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void pickAlarmSound() {
+            Intent i = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER)
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Alarm sesi")
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, Notifications.alarmSound())
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                    .putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+                            AlarmSound.isDefault(MainActivity.this) ? Settings.System.DEFAULT_ALARM_ALERT_URI : AlarmSound.uri(MainActivity.this));
+            runOnUiThread(() -> {
+                try {
+                    startActivityForResult(i, REQUEST_SOUND);
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Bu telefonda ses listesi açılamadı.", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public boolean alarmSoundFileSupported() {
+            return AlarmSound.fileSupported();
+        }
+
+        @JavascriptInterface
+        public void pickAlarmSoundFile() {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("audio/*");
+            runOnUiThread(() -> startActivityForResult(i, REQUEST_SOUND_FILE));
+        }
+
+        @JavascriptInterface
+        public void resetAlarmSound() {
+            AlarmSound.set(MainActivity.this, null);
+        }
+
+        // "Diğer uygulamaların üzerinde göster": telefon kullanılırken de fotoğraf tam
+        // ekran açılsın.
+        @JavascriptInterface
+        public boolean overlayAllowed() {
+            return WorkoutAlarms.overlayAllowed(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void openOverlaySettings() {
+            openSettings(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())));
         }
 
         @JavascriptInterface

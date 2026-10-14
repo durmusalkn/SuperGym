@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.os.Build;
+import android.provider.Settings;
 import android.text.TextUtils;
 
 import org.json.JSONArray;
@@ -169,7 +170,7 @@ final class WorkoutAlarms {
                 ? "Hazırlan: antrenman " + e.time() + "'de"
                 : "Hazırlan: " + e.time() + "'de " + e.program;
         String text = e.exercises.isEmpty()
-                ? "Çantanı hazırla, su şişeni unutma 💪"
+                ? "Çantanı hazırla, su şişeni unutma."
                 : "Bugün: " + TextUtils.join(" · ", e.exercises);
         Notification n = Notifications.builder(ctx, Notifications.CH_PREP)
                 .setContentTitle(title)
@@ -229,7 +230,7 @@ final class WorkoutAlarms {
     /** Alarm sesi ve tam ekran resim; 5 dakika sonra yeniden çalmak üzere kurulur. */
     private static void ring(Context ctx) {
         String program = ringProgram(ctx);
-        String title = "Antrenman vakti! 💪";
+        String title = "Antrenman vakti!";
         String text = program.isEmpty() ? "Salona gitme zamanı." : "Bugün " + program + ". Salona gitme zamanı.";
 
         PendingIntent full = screen(ctx);
@@ -240,7 +241,7 @@ final class WorkoutAlarms {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
 
         @SuppressWarnings("deprecation")
-        Notification.Builder b = Notifications.builder(ctx, Notifications.CH_ALARM)
+        Notification.Builder b = Notifications.builder(ctx, AlarmSound.channel(ctx))
                 .setContentTitle(title)
                 .setContentText(text)
                 .setContentIntent(full)
@@ -249,7 +250,7 @@ final class WorkoutAlarms {
                 .setPriority(Notification.PRIORITY_MAX)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setOngoing(true)
-                .setSound(Notifications.alarmSound(), new android.media.AudioAttributes.Builder()
+                .setSound(AlarmSound.uri(ctx), new android.media.AudioAttributes.Builder()
                         .setUsage(android.media.AudioAttributes.USAGE_ALARM).build())
                 .setVibrate(new long[]{0, 800, 400, 800, 400, 800})
                 .addAction(new Notification.Action.Builder(null, "Antrenmana girdim", entered).build())
@@ -263,10 +264,30 @@ final class WorkoutAlarms {
         n.flags |= Notification.FLAG_INSISTENT;
         Notifications.cancel(ctx, Notifications.ID_ALARM);
         Notifications.post(ctx, Notifications.ID_ALARM, n);
+        showScreen(ctx);
 
         if (!prefs(ctx).getBoolean("ring_test", false)) {
             Alarms.setExact(ctx, System.currentTimeMillis() + REPEAT_MS, broadcast(ctx, ACTION_RING, RC_RING));
         }
+    }
+
+    /**
+     * Android, telefon kullanılırken tam ekran bildirimi yalnızca üstte küçük bir bildirim
+     * olarak gösterir. "Diğer uygulamaların üzerinde göster" izni verildiyse resim ekranı
+     * doğrudan açılır, böylece telefon elindeyken de fotoğraf öne gelir.
+     */
+    private static void showScreen(Context ctx) {
+        if (!overlayAllowed(ctx)) return;
+        try {
+            ctx.startActivity(new Intent(ctx, AlarmActivity.class)
+                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION));
+        } catch (Exception ignored) {
+            // Telefon izin vermezse bildirimdeki tam ekran resim yine çalışır.
+        }
+    }
+
+    static boolean overlayAllowed(Context ctx) {
+        return Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(ctx);
     }
 
     /** Ertele: şimdilik sustur, erteleme süresi sonunda yeniden çal. */
@@ -299,7 +320,7 @@ final class WorkoutAlarms {
         return s;
     }
 
-    /** Alarmı tamamen susturur (girdim ya da bugün gitmiyorum). */
+    /** Alarmı tamamen susturur ("Antrenmana girdim", süre dolması ya da o gün set girilmesi). */
     static void stop(Context ctx) {
         prefs(ctx).edit()
                 .remove("ring_since").remove("ring_date").remove("ring_template")
