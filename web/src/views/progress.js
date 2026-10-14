@@ -1,6 +1,6 @@
 // İlerleme: hareket bazında grafik ve rekorlar, vücut ağırlığı.
-import { h, svg, today, shortDate, parseDate, num, parseNum, isValidDate, GROUPS } from '../util.js'
-import { state, mutate, exercise, history as exHistory, records, oneRM, volume } from '../state.js'
+import { h, svg, today, addDays, shortDate, parseDate, num, parseNum, isValidDate, GROUPS, groupColor } from '../util.js'
+import { state, mutate, exercise, history as exHistory, records, oneRM, volume, workSets } from '../state.js'
 import { go, render, show, card, button, input, select, sectionTitle, empty } from '../ui.js'
 import { setsSummary } from './workout.js'
 
@@ -24,11 +24,12 @@ export function progressView(arg) {
   const withHistory = state.data.exercises.filter((e) => exHistory(e.id).length)
   const selected = exercise(arg) && exHistory(arg).length ? exercise(arg) : null
 
-  // Seçilmemişse en son yapılan hareketi göster.
+  // Seçilmemişse en son yapılan hareketi göster (ısınma dışında seti olan).
   if (!selected && withHistory.length) {
-    const lastWorkout = [...state.data.workouts].reverse().find((w) => w.items.some((it) => it.sets.length))
-    const id = lastWorkout?.items.find((it) => it.sets.length)?.exerciseId
-    if (id) {
+    const hasWork = (it) => workSets(it.sets).length > 0
+    const lastWorkout = [...state.data.workouts].reverse().find((w) => w.items.some(hasWork))
+    const id = lastWorkout?.items.find(hasWork)?.exerciseId
+    if (id && exHistory(id).length) {
       history.replaceState(history.state, '', `#/ilerleme/${id}`)
       return progressView(id)
     }
@@ -45,6 +46,8 @@ export function progressView(arg) {
     'div',
     { class: 'space-y-4' },
     h('h1', { class: 'text-xl font-bold' }, 'İlerleme'),
+    balance(),
+    sectionTitle('Hareket'),
     selected
       ? [
           select({ value: selected.id, onchange: (ev) => go(`#/ilerleme/${ev.target.value}`, true) }, options),
@@ -52,6 +55,72 @@ export function progressView(arg) {
         ]
       : card({}, empty('Henüz kayıtlı set yok. Antrenman ekledikçe ilerlemen burada görünecek.')),
     bodyWeight(),
+  )
+}
+
+// Kas grubu dengesi: son 7 ya da 30 günde her gruba yapılan asıl set sayısı.
+let balanceDays = 7
+
+function balance() {
+  const from = addDays(today(), -(balanceDays - 1))
+  const counts = Object.fromEntries(GROUPS.map((g) => [g, 0]))
+  for (const w of state.data.workouts) {
+    if (w.date < from || w.date > today()) continue
+    for (const it of w.items) {
+      const g = exercise(it.exerciseId)?.group
+      if (g) counts[g] += workSets(it.sets).length
+    }
+  }
+  const total = Object.values(counts).reduce((a, b) => a + b, 0)
+  const maxCount = Math.max(1, ...Object.values(counts))
+  // Kardiyo ve "Diğer" hiç yapılmadıysa listede gösterilmez.
+  const groups = GROUPS.filter((g) => counts[g] || !['Kardiyo', 'Diğer'].includes(g))
+
+  return card(
+    {},
+    h(
+      'div',
+      { class: 'mb-3 flex items-center justify-between' },
+      h('h2', { class: 'font-semibold' }, 'Kas grubu dengesi'),
+      h(
+        'div',
+        { class: 'flex gap-1' },
+        [7, 30].map((d) =>
+          h(
+            'button',
+            {
+              type: 'button',
+              class: `rounded-full px-3 py-1 text-xs ${balanceDays === d ? 'bg-emerald-600 text-white' : 'bg-zinc-800 text-zinc-300'}`,
+              onclick: () => {
+                balanceDays = d
+                render()
+              },
+            },
+            `${d} gün`,
+          ),
+        ),
+      ),
+    ),
+    total
+      ? h(
+          'div',
+          { class: 'space-y-1.5' },
+          groups.map((g) =>
+            h(
+              'div',
+              { class: 'grid grid-cols-[4.5rem_1fr_2rem] items-center gap-2 text-sm' },
+              h('span', { class: counts[g] ? 'text-zinc-300' : 'text-zinc-500' }, g),
+              h(
+                'div',
+                { class: 'h-3 overflow-hidden rounded-full bg-zinc-800' },
+                h('div', { class: 'h-full rounded-full', style: `width:${(counts[g] / maxCount) * 100}%;background:${groupColor(g).hex}` }),
+              ),
+              h('span', { class: `text-right tabular-nums ${counts[g] ? '' : 'text-zinc-600'}` }, counts[g]),
+            ),
+          ),
+          h('p', { class: 'pt-1 text-xs text-zinc-500' }, `Son ${balanceDays} günde gruplara yapılan set sayısı (ısınma hariç). Boş kalan grubu ihmal ediyor olabilirsin.`),
+        )
+      : h('p', { class: 'text-sm text-zinc-500' }, `Son ${balanceDays} günde set yok.`),
   )
 }
 
