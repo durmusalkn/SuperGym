@@ -1,7 +1,11 @@
 # SuperGym
 
-Antrenmanda yapılan hareketleri kaydeden, tamamen telefonda çalışan uygulama.
-Bulut yok: veriler telefondaki bir JSON dosyasında tutulur, dışa/içe aktarma ile yedeklenir.
+Spor salonunda yapılan hareketleri, setleri ve kiloları kaydeden, tamamen telefonda
+çalışan Android uygulaması. Bulut ya da hesap yok: veriler telefondaki bir JSON
+dosyasında durur; dışa aktarma ve otomatik yedekle korunur.
+
+Tasarım dili **Ritim**: antrenman bir döngü (efor, nefes, tekrar), bu yüzden her şey
+çember. Setler bir halkanın dilimleri, dinlenme bir nefes rehberi, takvim bir ay halkası.
 
 ## Özellikler
 
@@ -41,39 +45,26 @@ Bulut yok: veriler telefondaki bir JSON dosyasında tutulur, dışa/içe aktarma
 
 | Klasör | İçerik |
 | --- | --- |
-| `core/` | Go: yerel HTTP sunucusu, API ve veri deposu |
+| `core/` | Go: yerel HTTP sunucusu, API, veri deposu, doğrulama ve sürüm yükseltme |
 | `mobile/` | Go: `gomobile bind` ile Android kütüphanesine çevrilen giriş noktası |
-| `cmd/supergym/` | Go: bilgisayarda test için çalıştırılabilir program |
-| `web/` | Arayüz: Vite + Tailwind (derlenince `core/dist`'e gömülür) |
-| `android/` | Arayüzü WebView ile gösteren ince Android kabuğu |
+| `cmd/supergym/` | Go: bilgisayarda çalıştırmak için program |
+| `web/` | Arayüz: Vite + Tailwind, düz JavaScript (derlenince `core/dist`'e gömülür) |
+| `android/` | WebView kabuğu ve Android'e özgü özellikler (Java) |
+| `.github/workflows/` | Her push'ta APK derleyen iş akışı |
 
-## Bilgisayarda çalıştırma
+## Hızlı başlangıç
 
 ```sh
-cd web && npm install && npm run build && cd ..
+cd web && npm ci && npm run build && cd ..
 go run ./cmd/supergym
 ```
 
-Program, açılması gereken adresi yazar (örn. `http://127.0.0.1:8080/?t=...`).
-Sonundaki `t` her açılışta yeniden üretilen bir anahtardır: API yalnızca bu anahtarı
-gönderen arayüze cevap verir, böylece telefondaki başka uygulamalar ya da tarayıcıda
-açık başka siteler verilere erişemez.
+Program açılacak adresi yazar (`http://127.0.0.1:8080/?t=...`). Sonundaki `t` her
+açılışta üretilen anahtardır; API yalnızca bu anahtarı gönderen arayüze cevap verir.
 
-Arayüz üzerinde çalışırken Go programı açıkken `cd web && npm run dev` çalıştırın ve
-Vite'ın adresini aynı anahtarla açın: `http://localhost:5173/?t=...`
+Testler: `go test ./...` · Ayrıntılar: [docs/gelistirme.md](docs/gelistirme.md)
 
-Testler: `go test ./...`
+## APK
 
-## APK (GitHub Actions)
-
-Her push'ta `.github/workflows/android.yml` APK'yı derler, GitHub Release'e
-yükler ve indirme linkini mail atar.
-
-Repo ayarları (Settings > Secrets and variables > Actions):
-
-| Ad | Tür | Açıklama |
-| --- | --- | --- |
-| `MAIL_TO` | Variable | APK linkinin gönderileceği mail adresi |
-| `MAIL_USERNAME` | Secret | Gönderen Gmail adresi |
-| `MAIL_PASSWORD` | Secret | O Gmail hesabının uygulama şifresi |
-| `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` | Secret | İmza anahtarı (bkz. `TODO.md`); yoksa geçici debug anahtarı kullanılır |
+Her push'ta GitHub Actions APK'yı derler ve **Releases**'e `build-N` ön sürümü olarak
+yükler (`SuperGym-N.apk`). İmza ve mail ayarları: [docs/gelistirme.md](docs/gelistirme.md#apk-ve-sürüm).

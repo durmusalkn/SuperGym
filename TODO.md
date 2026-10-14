@@ -2,7 +2,7 @@
 
 ## İmza anahtarı (Secret ile APK)
 
-- [ ] Size özel bir imza anahtarı (keystore) oluştur.
+- [ ] Size özel bir imza anahtarı (keystore) oluştur (komut: [docs/gelistirme.md](docs/gelistirme.md#kalıcı-imza-anahtarı)).
 - [ ] Anahtarı GitHub Secrets'a ekle: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
 - [ ] APK'lar bundan sonra Secret'taki bu anahtarla imzalanarak oluşturulacak
       (workflow ve `android/app/build.gradle` buna hazır, Secret eklenince otomatik devreye girer).
@@ -15,3 +15,13 @@ sonra **İçe aktar** ile yedeği geri yükleyin.
 ## Mail
 
 - [ ] `MAIL_TO` (Variable), `MAIL_USERNAME` ve `MAIL_PASSWORD` (Secret) değerlerini ekle.
+
+## Telefonda doğrulama
+
+- [ ] Yeni özellikleri ve Ritim tasarımını gerçek telefonda dene; liste:
+      [docs/gelistirme.md](docs/gelistirme.md#telefonda-doğrulanması-gerekenler).
+
+## Birleştirme
+
+- [ ] `claude/yeni-ozellikler` dalını (yeni özellikler, Ritim tasarımı, belgeler) telefonda
+      denedikten sonra pull request ile `main`'e al.
