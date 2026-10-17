@@ -3,6 +3,7 @@ import { h, today, shortDate, WEEKDAYS } from '../util.js'
 import { state, api, mutate, exercise } from '../state.js'
 import { render, show, card, button, input, select, sectionTitle, icon, android } from '../ui.js'
 import { editTemplate } from '../sheets.js'
+import { coachSection } from '../coach.js'
 
 export function planView() {
   return h(
@@ -13,6 +14,7 @@ export function planView() {
     alarmsSection(),
     settingsSection(),
     inactiveSection(),
+    coachSection(),
     backupSection(),
     resetSection(),
   )

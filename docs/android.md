@@ -3,7 +3,8 @@
 Android uygulaması (`android/`) ince bir kabuktur: Go sunucusunu başlatır, arayüzü
 WebView'de gösterir ve web'in yapamadıklarını yapar.
 
-- Paket: `com.supergym.app` · `minSdk 24` (Android 7) · `targetSdk 35` (Android 15)
+- Paket: `com.supergym.app` · `minSdk 26` (Android 8; Gemini Nano kütüphanesi bunu ister) · `targetSdk 35` (Android 15)
+- Bağımlılık: `com.google.mlkit:genai-prompt` (Gemini Nano). Bu yüzden `android.useAndroidX=true`.
 - Go kütüphanesi `gomobile bind` ile `android/app/libs/supergym.aar` olarak üretilir
   (yalnızca `arm64`; CI'da). Depoda tutulmaz.
 - Kod: `android/app/src/main/java/com/supergym/app/`
@@ -27,6 +28,7 @@ WebView'de gösterir ve web'in yapamadıklarını yapar.
 | `Backup` | Otomatik yedeği İndirilenler/SuperGym klasörüne yazar, eskilerini siler. |
 | `Notifications` | Bildirim kanalları ve ortak bildirim ayarları. |
 | `Alarms` | Tam zamanlı alarm kurma (izin yoksa birkaç dakika gecikebilen alarma düşer). |
+| `Nano` | Gemini Nano (ML Kit GenAI Prompt API, AICore): durum, model indirme, soru. Kotlin suspend fonksiyonları (`checkStatus`, `getBaseModelName`) Java'dan bir `Continuation` ile çağrılır. Yalnızca destekleyen telefonlarda çalışır (örn. Pixel 9+, Galaxy S25/S26). |
 
 ## Köprü: `window.SuperGymAndroid`
 
@@ -58,12 +60,17 @@ Arayüzden çağrılan Java metotları (`MainActivity.Bridge`). Arayüz her ça�
 | `exactAlarmsAllowed() → boolean` / `openExactAlarmSettings()` | "Alarmlar ve hatırlatıcılar" izni | aynı |
 | `testAlarm()` | 10 saniye sonra bir kez (tekrarlamadan) çalan deneme alarmı | Plan › Alarm ekranı ve sesi |
 | `takeAlarmStart() → string` | "Antrenmana girdim" denildiyse `{"templateId": "…"}` (bir kez), yoksa boş | `main.js` `alarmStart` |
+| `nanoStatus()` | Gemini Nano'nun durumu; `window.onNano({type:"status", status, model?, error?})` (`status`: `available`, `downloadable`, `downloading`, `unavailable`, `error`) | Plan › Yapay zekâ antrenörü › Deneme |
+| `nanoDownload()` | Modeli indirir; `onNano({type:"progress", bytes})`, bitince `{type:"downloaded"}` | aynı |
+| `nanoAsk(metin)` | Nano'ya sorar; `onNano({type:"answer", text})` ya da `{type:"error", error}` | aynı |
+| `askGeminiApp(metin)` | Metni Gemini uygulamasına paylaşır (`ACTION_SEND`, paket `com.google.android.apps.bard`); uygulama yoksa paylaşım menüsü | aynı |
 
 Java'dan arayüze: `window.onExportDone(ok)` (dışa aktarma bitti),
 `window.onAppResume()` (uygulama öne geldi; sayaç yeniden kontrol edilir),
 `window.onAlarmStart()` (alarmdan "Antrenmana girdim" ile açıldı; arayüz `takeAlarmStart`'ı
 okur ve o günün programını bugünün antrenmanına ekler) ve
-`window.onAlarmSoundChanged(ok)` (alarm sesi seçildi ya da dosya kopyalandı).
+`window.onAlarmSoundChanged(ok)` (alarm sesi seçildi ya da dosya kopyalandı) ve
+`window.onNano(mesaj)` (Gemini Nano sonucu).
 
 `syncState` gövdesi (yalnızca değiştiğinde gönderilir):
 
@@ -86,7 +93,7 @@ adı ve hareketleri de gönderilir, çünkü hazırlık bildirimi uygulama kapal
 
 | İzin | Neden | Not |
 | --- | --- | --- |
-| `INTERNET` | WebView'in telefondaki yerel sunucuya (127.0.0.1) bağlanması | Dışarıya bağlantı yok |
+| `INTERNET` | WebView'in telefondaki yerel sunucuya (127.0.0.1) bağlanması; yapay zekâ antrenörünün Gemini API'ye sorması (Go sunucusu, HTTPS) | Dışarıya yalnızca kullanıcı Gemini API'ye soru sorunca bağlanılır |
 | `VIBRATE` | Dinlenme bitince titreşim | |
 | `POST_NOTIFICATIONS` | Dinlenme ve hatırlatma bildirimleri | Android 13+; ilk dinlenmede istenir |
 | `USE_EXACT_ALARM` | Sayacın ekran kapalıyken de tam zamanında bitmesi | Android 13+; kurulumda verilir |
